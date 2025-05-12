@@ -1,17 +1,39 @@
-import RAPIER from '@dimforge/rapier3d';
+import {
+  ColliderDesc,
+  RigidBodyDesc,
+  Vector3 as RapierVector3,
+  World,
+  Quaternion,
+} from '@dimforge/rapier3d';
 import './style.css';
-import * as THREE from 'three';
 import RapierDebugRenderer from './RapierDebugRenderer';
 import { GUI } from 'dat.gui';
 import ObserverControls from './ObserverControls';
+import Stats from 'three/addons/libs/stats.module.js';
+import PhysicalObject from './PhysicalObject';
+import {
+  Mesh,
+  BoxGeometry,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  DirectionalLight,
+  Clock,
+  WebGLRenderer,
+  PerspectiveCamera,
+  Scene,
+  AmbientLight,
+  Vector3 as ThreeVector3,
+  Quaternion as ThreeQuaternion,
+} from 'three';
+import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 
-const world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
+const world = new World({ x: 0.0, y: -9.81, z: 0.0 });
 
-const scene = new THREE.Scene();
+const scene = new Scene();
 
 const rapierDebugRenderer = new RapierDebugRenderer(scene, world);
 
-const camera = new THREE.PerspectiveCamera(
+const camera = new PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
   0.1,
@@ -19,10 +41,13 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.z = 2.5;
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
+
+const stats = new Stats();
+document.body.appendChild(stats.dom);
 
 const controls = new ObserverControls(camera, renderer.domElement);
 
@@ -32,38 +57,82 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-world.createCollider(
-  RAPIER.ColliderDesc.cuboid(500, 0.1, 500).setTranslation(0, -1, 0)
+const physicalObjects: PhysicalObject[] = [];
+
+const ground = new PhysicalObject(
+  new Mesh(
+    new PlaneGeometry(1000, 1000, 1, 1),
+    new MeshStandardMaterial({ color: 0xffffff })
+  ),
+  world.createCollider(
+    ColliderDesc.cuboid(500, 0.001, 500).setTranslation(0, -1, 0)
+  )
+);
+ground.object3D.rotateX(-Math.PI / 2);
+ground.object3D.position.y = -1;
+ground.object3D.receiveShadow = true;
+
+const cube = new PhysicalObject(
+  new Mesh(new BoxGeometry(), new MeshStandardMaterial({ color: 0x555555 })),
+  world.createCollider(
+    ColliderDesc.cuboid(0.5, 0.5, 0.5),
+    world.createRigidBody(RigidBodyDesc.dynamic())
+  )
+);
+cube.object3D.castShadow = true;
+
+const gltfLoader = new GLTFLoader();
+
+const gltf = await gltfLoader.loadAsync('/models/cars.glb');
+
+const carsGroup = gltf.scene;
+carsGroup.traverse((child) => {
+  if (child instanceof Mesh) {
+    child.castShadow = true;
+  }
+});
+
+const robberMesh = carsGroup.children[0] as Mesh;
+const policeMesh = carsGroup.children[1] as Mesh;
+
+const robber = new PhysicalObject(
+  robberMesh,
+  world.createCollider(
+    ColliderDesc.trimesh(
+      robberMesh.geometry.attributes.position.array as Float32Array,
+      robberMesh.geometry.index?.array as Uint32Array
+    ),
+    world.createRigidBody(RigidBodyDesc.dynamic())
+  )
+);
+robber.body?.setTranslation(new RapierVector3(3, 1, 3), false);
+robber.body?.setRotation(
+  new ThreeQuaternion().setFromAxisAngle(
+    new ThreeVector3(1, 0, 0),
+    Math.PI / 2
+  ),
+  false
 );
 
-const cubeRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic());
+physicalObjects.push(robber);
+physicalObjects.push(cube);
+physicalObjects.push(ground);
 
-world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5), cubeRigidBody);
+for (const object of physicalObjects) {
+  scene.add(object.object3D);
+}
 
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(),
-  new THREE.MeshStandardMaterial({ color: 0x555555 })
-);
-cube.castShadow = true;
-
-const plane = new THREE.Mesh(
-  new THREE.PlaneGeometry(1000, 1000, 1, 1),
-  new THREE.MeshStandardMaterial({ color: 0xffffff })
-);
-plane.rotateX(-Math.PI / 2);
-plane.position.y = -1;
-plane.receiveShadow = true;
-
-const light = new THREE.DirectionalLight(0xffffff, 1);
+const light = new DirectionalLight(0xffffff, 1);
 light.position.set(5, 5, 5);
 light.castShadow = true;
-
-scene.add(cube);
-scene.add(plane);
 scene.add(light);
 
+const ambientLight = new AmbientLight(0xffffff, 0.5);
+ambientLight.position.set(0, 0, 0);
+scene.add(ambientLight);
+
 let delta: number = 0;
-const clock = new THREE.Clock();
+const clock = new Clock();
 
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
@@ -73,11 +142,15 @@ function animate() {
 
   controls.update(delta * 5);
 
+  stats.update();
+
   delta = clock.getDelta();
   world.timestep = Math.min(delta, 0.1);
   world.step();
 
-  cube.position.copy(cubeRigidBody.translation());
+  for (const object of physicalObjects) {
+    object.update();
+  }
 
   rapierDebugRenderer.update();
 
