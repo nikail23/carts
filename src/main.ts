@@ -2,14 +2,10 @@ import {
   ColliderDesc,
   RigidBodyDesc,
   Vector3 as RapierVector3,
-  World,
-  Quaternion,
 } from '@dimforge/rapier3d';
 import './style.css';
-import RapierDebugRenderer from './RapierDebugRenderer';
 import { GUI } from 'dat.gui';
 import ObserverControls from './ObserverControls';
-import Stats from 'three/addons/libs/stats.module.js';
 import PhysicalObject from './PhysicalObject';
 import {
   Mesh,
@@ -18,44 +14,22 @@ import {
   PlaneGeometry,
   DirectionalLight,
   Clock,
-  WebGLRenderer,
-  PerspectiveCamera,
-  Scene,
   AmbientLight,
   Vector3 as ThreeVector3,
   Quaternion as ThreeQuaternion,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
-
-const world = new World({ x: 0.0, y: -9.81, z: 0.0 });
-
-const scene = new Scene();
-
-const rapierDebugRenderer = new RapierDebugRenderer(scene, world);
-
-const camera = new PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.z = 2.5;
-
-const renderer = new WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-document.body.appendChild(renderer.domElement);
-
-const stats = new Stats();
-document.body.appendChild(stats.dom);
+import {
+  camera,
+  rapierDebugRenderer,
+  renderer,
+  scene,
+  stats,
+  world,
+} from './global';
+import { Car } from './Car';
 
 const controls = new ObserverControls(camera, renderer.domElement);
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
 
 const physicalObjects: PhysicalObject[] = [];
 
@@ -81,40 +55,8 @@ const cube = new PhysicalObject(
 );
 cube.object3D.castShadow = true;
 
-const gltfLoader = new GLTFLoader();
+const car = new Car('/models/car1.glb', new RapierVector3(3, -0.5, 3));
 
-const gltf = await gltfLoader.loadAsync('/models/cars.glb');
-
-const carsGroup = gltf.scene;
-carsGroup.traverse((child) => {
-  if (child instanceof Mesh) {
-    child.castShadow = true;
-  }
-});
-
-const robberMesh = carsGroup.children[0] as Mesh;
-const policeMesh = carsGroup.children[1] as Mesh;
-
-const robber = new PhysicalObject(
-  robberMesh,
-  world.createCollider(
-    ColliderDesc.trimesh(
-      robberMesh.geometry.attributes.position.array as Float32Array,
-      robberMesh.geometry.index?.array as Uint32Array
-    ),
-    world.createRigidBody(RigidBodyDesc.dynamic())
-  )
-);
-robber.body?.setTranslation(new RapierVector3(3, 1, 3), false);
-robber.body?.setRotation(
-  new ThreeQuaternion().setFromAxisAngle(
-    new ThreeVector3(1, 0, 0),
-    Math.PI / 2
-  ),
-  false
-);
-
-physicalObjects.push(robber);
 physicalObjects.push(cube);
 physicalObjects.push(ground);
 
@@ -151,6 +93,8 @@ function animate() {
   for (const object of physicalObjects) {
     object.update();
   }
+
+  car.update();
 
   rapierDebugRenderer.update();
 
