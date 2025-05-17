@@ -18,7 +18,6 @@ import {
   Vector3 as ThreeVector3,
   Quaternion as ThreeQuaternion,
 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import {
   camera,
   rapierDebugRenderer,
@@ -54,8 +53,10 @@ const cube = new PhysicalObject(
   )
 );
 cube.object3D.castShadow = true;
+cube.collider.setCollisionGroups(65542);
 
-const car = new Car('/models/car1.glb', new RapierVector3(3, -0.5, 3));
+const car = new Car();
+await car.init('/models/car1.glb', new ThreeVector3(3, 0, 3));
 
 physicalObjects.push(cube);
 physicalObjects.push(ground);
@@ -78,6 +79,34 @@ const clock = new Clock();
 
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
+
+// Create a rotation controller object
+const rotationController = {
+  x: 0,
+  y: 0,
+  z: 0,
+  update: () => {
+    car.transmission.body.setRotation(
+      new ThreeQuaternion(
+        rotationController.x,
+        rotationController.y,
+        rotationController.z,
+        1
+      ),
+      false
+    );
+  },
+};
+
+gui
+  .add(rotationController, 'x', -Math.PI, Math.PI)
+  .onChange(rotationController.update);
+gui
+  .add(rotationController, 'y', -Math.PI, Math.PI)
+  .onChange(rotationController.update);
+gui
+  .add(rotationController, 'z', -Math.PI, Math.PI)
+  .onChange(rotationController.update);
 
 function animate() {
   requestAnimationFrame(animate);

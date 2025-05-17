@@ -1,15 +1,19 @@
 import { RigidBody, Collider } from '@dimforge/rapier3d';
-import { Object3D } from 'three';
+import { Object3D, Quaternion, Vector3 } from 'three';
 
 export default class PhysicalObject {
   public object3D: Object3D;
   public collider: Collider;
   public body: RigidBody | null;
+  public baseRotation: Quaternion;
+  public basePosition: Vector3;
 
   public constructor(object3D: Object3D, collider: Collider) {
     this.object3D = object3D;
     this.collider = collider;
     this.body = collider.parent();
+    this.baseRotation = new Quaternion();
+    this.basePosition = new Vector3();
   }
 
   public update(): void {
@@ -18,7 +22,7 @@ export default class PhysicalObject {
     const translation = this.body.translation();
     const rotation = this.body.rotation();
 
-    this.object3D.position.copy(translation);
-    this.object3D.quaternion.copy(rotation);
+    this.object3D.position.copy(translation).add(this.basePosition);
+    this.object3D.quaternion.copy(rotation).multiply(this.baseRotation);
   }
 }
