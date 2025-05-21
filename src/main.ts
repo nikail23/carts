@@ -125,6 +125,7 @@ function animate() {
     object.update();
   }
 
+  car.update();
   controls.update(delta);
 
   rapierDebugRenderer.update();

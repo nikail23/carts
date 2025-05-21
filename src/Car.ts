@@ -297,4 +297,16 @@ export class Car {
 
     this.ready = true;
   }
+
+  public update(): void {
+    if (!this.ready) return;
+
+    this.transmission.update();
+    this.wheelFL.update();
+    this.wheelFR.update();
+    this.wheelBL.update();
+    this.wheelBR.update();
+    this.axelFL.update();
+    this.axelFR.update();
+  }
 }

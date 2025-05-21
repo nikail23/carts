@@ -64,17 +64,7 @@ export class CarControls {
   }
 
   public update(delta: number): void {
-    if (!this.car?.ready) return;
-
     this.keyControls.update(delta);
     this.mouseControls.update();
-
-    this.car.transmission.update();
-    this.car.wheelFL.update();
-    this.car.wheelFR.update();
-    this.car.wheelBL.update();
-    this.car.wheelBR.update();
-    this.car.axelFL.update();
-    this.car.axelFR.update();
   }
 }
