@@ -1,18 +1,13 @@
 import { Camera } from 'three';
 import { PointerLockControls } from 'three/examples/jsm/Addons.js';
+import { KeyMapControls } from './KeyMapControls';
 
-export default class ObserverControls {
+export default class ObserverControls extends KeyMapControls {
   private _pointerLockControls: PointerLockControls;
-  private _keyMap: Map<string, boolean>;
 
   public constructor(camera: Camera, domElement: HTMLCanvasElement) {
+    super();
     this._pointerLockControls = new PointerLockControls(camera, domElement);
-    this._keyMap = new Map<string, boolean>();
-    const onDocumentKey = (e: KeyboardEvent) => {
-      this._keyMap.set(e.code, e.type === 'keydown');
-    };
-    document.addEventListener('keydown', onDocumentKey, false);
-    document.addEventListener('keyup', onDocumentKey, false);
     domElement.addEventListener('click', () => {
       this._pointerLockControls.lock();
     });
@@ -21,27 +16,27 @@ export default class ObserverControls {
   public update(delta: number): void {
     if (!this._pointerLockControls.isLocked) return;
 
-    if (this._keyMap.get('KeyW') || this._keyMap.get('ArrowUp')) {
+    if (this.keyMap.get('KeyW')) {
       this._pointerLockControls.moveForward(delta);
     }
 
-    if (this._keyMap.get('KeyS') || this._keyMap.get('ArrowDown')) {
+    if (this.keyMap.get('KeyS')) {
       this._pointerLockControls.moveForward(-delta);
     }
 
-    if (this._keyMap.get('KeyA') || this._keyMap.get('ArrowLeft')) {
+    if (this.keyMap.get('KeyA')) {
       this._pointerLockControls.moveRight(-delta);
     }
 
-    if (this._keyMap.get('KeyD') || this._keyMap.get('ArrowRight')) {
+    if (this.keyMap.get('KeyD')) {
       this._pointerLockControls.moveRight(delta);
     }
 
-    if (this._keyMap.get('Space')) {
+    if (this.keyMap.get('Space')) {
       this._pointerLockControls.object.position.y += delta;
     }
 
-    if (this._keyMap.get('ShiftLeft')) {
+    if (this.keyMap.get('ShiftLeft')) {
       this._pointerLockControls.object.position.y -= delta;
     }
   }
