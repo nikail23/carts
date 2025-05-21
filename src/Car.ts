@@ -11,9 +11,8 @@ import { Mesh, Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import { Quaternion as ThreeQuaternion, Vector3 as ThreeVector3 } from 'three';
 import { Vector3 as RapierVector3 } from '@dimforge/rapier3d';
-import { KeyMapControls } from './KeyMapControls';
 
-export class Car extends KeyMapControls {
+export class Car {
   public readonly flOffset = new ThreeVector3(-1.35, -0.29, 0.77);
   public readonly frOffset = new ThreeVector3(-1.35, -0.29, -0.77);
   public readonly blOffset = new ThreeVector3(1.1, -0.29, 0.77);
@@ -34,15 +33,9 @@ export class Car extends KeyMapControls {
   public flAxelJoint: RevoluteImpulseJoint;
   public frAxelJoint: RevoluteImpulseJoint;
 
-  protected loading: boolean = false;
-
-  constructor() {
-    super();
-  }
+  public ready = false;
 
   public async init(modelURL: string, position: ThreeVector3): Promise<void> {
-    this.loading = true;
-
     const gltf = await new GLTFLoader().loadAsync(modelURL);
 
     gltf.scene.traverse((child) => {
@@ -302,59 +295,6 @@ export class Car extends KeyMapControls {
     this.flAxelJoint = flAxelJoint as RevoluteImpulseJoint;
     this.frAxelJoint = frAxelJoint as RevoluteImpulseJoint;
 
-    this.loading = false;
-  }
-
-  public update(): void {
-    if (this.loading) return;
-
-    this.transmission.update();
-    this.wheelFL.update();
-    this.wheelFR.update();
-    this.wheelBL.update();
-    this.wheelBR.update();
-    this.axelFL.update();
-    this.axelFR.update();
-
-    const maxSteerAngle = Math.PI / 6; // 60 degrees in radians
-    const targetVelocity = this.keyMap.get('ArrowUp')
-      ? 20
-      : this.keyMap.get('ArrowDown')
-        ? -8
-        : 0;
-    const targetSteer = this.keyMap.get('ArrowLeft')
-      ? maxSteerAngle
-      : this.keyMap.get('ArrowRight')
-        ? -maxSteerAngle
-        : 0;
-
-    (this.wheelBLMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      2.0
-    );
-    (this.wheelBRMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      2.0
-    );
-
-    (this.wheelFLMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      2.0
-    );
-    (this.wheelFRMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      2.0
-    );
-
-    (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
-      targetSteer,
-      100,
-      10
-    );
-    (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
-      targetSteer,
-      100,
-      10
-    );
+    this.ready = true;
   }
 }

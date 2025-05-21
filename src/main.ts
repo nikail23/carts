@@ -5,7 +5,6 @@ import {
 } from '@dimforge/rapier3d';
 import './style.css';
 import { GUI } from 'dat.gui';
-import ObserverControls from './ObserverControls';
 import PhysicalObject from './PhysicalObject';
 import {
   Mesh,
@@ -27,8 +26,10 @@ import {
   world,
 } from './global';
 import { Car } from './Car';
+import { ObserverControls } from './controls';
+import { CarControls } from './controls/CarControls';
 
-const controls = new ObserverControls(camera, renderer.domElement);
+// const controls = new ObserverControls(camera, renderer.domElement);
 
 const physicalObjects: PhysicalObject[] = [];
 
@@ -58,6 +59,10 @@ cube.collider.setCollisionGroups(65542);
 const car = new Car();
 await car.init('/models/car1.glb', new ThreeVector3(3, 0, 3));
 
+const controls = new CarControls(renderer.domElement, camera);
+const pivot = controls.attachToCar(car, new ThreeVector3(0, 0.5, 0));
+scene.add(pivot);
+
 physicalObjects.push(cube);
 physicalObjects.push(ground);
 
@@ -80,7 +85,6 @@ const clock = new Clock();
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
 
-// Create a rotation controller object
 const rotationController = {
   x: 0,
   y: 0,
@@ -111,8 +115,6 @@ gui
 function animate() {
   requestAnimationFrame(animate);
 
-  controls.update(delta * 5);
-
   stats.update();
 
   delta = clock.getDelta();
@@ -123,7 +125,7 @@ function animate() {
     object.update();
   }
 
-  car.update();
+  controls.update(delta);
 
   rapierDebugRenderer.update();
 
