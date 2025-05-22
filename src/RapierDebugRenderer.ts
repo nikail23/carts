@@ -9,7 +9,7 @@ import {
 
 export default class RapierDebugRenderer {
   public world: World;
-  public enabled = true;
+  public enabled = false;
 
   private _lines: LineSegments;
 

@@ -79,7 +79,7 @@ light.position.set(5, 5, 5);
 light.castShadow = true;
 scene.add(light);
 
-const ambientLight = new AmbientLight(0xffffff, 0.5);
+const ambientLight = new AmbientLight(0xffffff, 0.2);
 ambientLight.position.set(0, 0, 0);
 scene.add(ambientLight);
 
@@ -88,6 +88,8 @@ const clock = new Clock();
 
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
+
+console.log('car1', car);
 
 function animate() {
   requestAnimationFrame(animate);
