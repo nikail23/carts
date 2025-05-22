@@ -1,13 +1,9 @@
-export type KeyControlsCallback = (
-  map: Map<string, boolean>,
-  delta: number
-) => void;
+export type KeyControlsCallback = (map: KeyControlsMap, delta: number) => void;
+export type KeyControlsMap = Map<string, boolean>;
 
 export class KeyControls {
-  protected static map: Map<string, boolean> = new Map();
+  protected static map: KeyControlsMap = new Map();
   protected static listenersInitialized = false;
-
-  private _callbacks: KeyControlsCallback[] = [];
 
   private get _map(): Map<string, boolean> {
     return KeyControls.map;
@@ -24,13 +20,7 @@ export class KeyControls {
     }
   }
 
-  public registerCallback(callback: KeyControlsCallback): void {
-    this._callbacks.push(callback);
-  }
-
-  public update(delta) {
-    for (const callback of this._callbacks) {
-      callback(this._map, delta);
-    }
+  public update(): KeyControlsMap {
+    return this._map;
   }
 }

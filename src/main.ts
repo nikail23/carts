@@ -85,33 +85,6 @@ const clock = new Clock();
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
 
-const rotationController = {
-  x: 0,
-  y: 0,
-  z: 0,
-  update: () => {
-    car.transmission.body.setRotation(
-      new ThreeQuaternion(
-        rotationController.x,
-        rotationController.y,
-        rotationController.z,
-        1
-      ),
-      false
-    );
-  },
-};
-
-gui
-  .add(rotationController, 'x', -Math.PI, Math.PI)
-  .onChange(rotationController.update);
-gui
-  .add(rotationController, 'y', -Math.PI, Math.PI)
-  .onChange(rotationController.update);
-gui
-  .add(rotationController, 'z', -Math.PI, Math.PI)
-  .onChange(rotationController.update);
-
 function animate() {
   requestAnimationFrame(animate);
 
@@ -125,8 +98,9 @@ function animate() {
     object.update();
   }
 
-  car.update();
-  controls.update(delta);
+  const carEventMap = controls.update();
+
+  car.update(carEventMap);
 
   rapierDebugRenderer.update();
 

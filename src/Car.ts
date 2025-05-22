@@ -12,6 +12,9 @@ import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import { Quaternion as ThreeQuaternion, Vector3 as ThreeVector3 } from 'three';
 import { Vector3 as RapierVector3 } from '@dimforge/rapier3d';
 
+export type CarEvent = 'accelerate' | 'brake' | 'steer_left' | 'steer_right';
+export type CarEventMap = Map<CarEvent, boolean>;
+
 export class Car {
   public readonly flOffset = new ThreeVector3(-1.35, -0.29, 0.77);
   public readonly frOffset = new ThreeVector3(-1.35, -0.29, -0.77);
@@ -298,7 +301,7 @@ export class Car {
     this.ready = true;
   }
 
-  public update(): void {
+  public update(map?: CarEventMap): void {
     if (!this.ready) return;
 
     this.transmission.update();
@@ -308,5 +311,47 @@ export class Car {
     this.wheelBR.update();
     this.axelFL.update();
     this.axelFR.update();
+
+    if (!map) return;
+
+    const targetVelocity = map.get('accelerate')
+      ? 20
+      : map.get('brake')
+        ? -8
+        : 0;
+    const targetSteer = map.get('steer_left')
+      ? Math.PI / 6
+      : map.get('steer_right')
+        ? -Math.PI / 6
+        : 0;
+
+    (this.wheelBLMotor as RevoluteImpulseJoint).configureMotorVelocity(
+      targetVelocity,
+      2.0
+    );
+    (this.wheelBRMotor as RevoluteImpulseJoint).configureMotorVelocity(
+      targetVelocity,
+      2.0
+    );
+
+    (this.wheelFLMotor as RevoluteImpulseJoint).configureMotorVelocity(
+      targetVelocity,
+      2.0
+    );
+    (this.wheelFRMotor as RevoluteImpulseJoint).configureMotorVelocity(
+      targetVelocity,
+      2.0
+    );
+
+    (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+      targetSteer,
+      100,
+      10
+    );
+    (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+      targetSteer,
+      100,
+      10
+    );
   }
 }
