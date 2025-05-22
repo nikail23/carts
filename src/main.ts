@@ -28,6 +28,7 @@ import {
 import { Car } from './Car';
 import { ObserverControls } from './controls';
 import { CarControls } from './controls/CarControls';
+import { CubeColliderGroup } from './ColliderGroup';
 
 // const controls = new ObserverControls(camera, renderer.domElement);
 
@@ -54,10 +55,13 @@ const cube = new PhysicalObject(
   )
 );
 cube.object3D.castShadow = true;
-cube.collider.setCollisionGroups(65542);
+cube.collider.setCollisionGroups(CubeColliderGroup);
 
 const car = new Car();
 await car.init('/models/car1.glb', new ThreeVector3(3, 0, 3));
+
+const car2 = new Car();
+await car2.init('/models/car2.glb', new ThreeVector3(-3, 0, -3));
 
 const controls = new CarControls(renderer.domElement, camera);
 const pivot = controls.attachToCar(car, new ThreeVector3(0, 0.5, 0));
@@ -101,6 +105,8 @@ function animate() {
   const carEventMap = controls.update();
 
   car.update(carEventMap);
+
+  car2.update();
 
   rapierDebugRenderer.update();
 

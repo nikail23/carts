@@ -11,15 +11,20 @@ import { Mesh, Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import { Quaternion as ThreeQuaternion, Vector3 as ThreeVector3 } from 'three';
 import { Vector3 as RapierVector3 } from '@dimforge/rapier3d';
+import {
+  AxelColliderGroup,
+  CarColliderGroup,
+  WheelColliderGroup,
+} from './ColliderGroup';
 
 export type CarEvent = 'accelerate' | 'brake' | 'steer_left' | 'steer_right';
 export type CarEventMap = Map<CarEvent, boolean>;
 
 export class Car {
-  public readonly flOffset = new ThreeVector3(-1.35, -0.29, 0.77);
-  public readonly frOffset = new ThreeVector3(-1.35, -0.29, -0.77);
-  public readonly blOffset = new ThreeVector3(1.1, -0.29, 0.77);
-  public readonly brOffset = new ThreeVector3(1.1, -0.29, -0.77);
+  public readonly flOffset = new ThreeVector3(-1.25, 0.29, 0.77);
+  public readonly frOffset = new ThreeVector3(-1.25, 0.29, -0.77);
+  public readonly blOffset = new ThreeVector3(1.25, 0.29, 0.77);
+  public readonly brOffset = new ThreeVector3(1.25, 0.29, -0.77);
 
   public transmission: PhysicalObject;
   public wheelFL: PhysicalObject;
@@ -161,38 +166,38 @@ export class Car {
       transmissionMesh,
       world.createCollider(transmissionShape, transmissionBody)
     );
-    this.transmission.collider.setCollisionGroups(131073);
+    this.transmission.collider.setCollisionGroups(CarColliderGroup);
     this.wheelBL = new PhysicalObject(
       wheelBLMesh,
       world.createCollider(wheelBLShape, wheelBLBody)
     );
-    this.wheelBL.collider.setCollisionGroups(262145);
+    this.wheelBL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelBR = new PhysicalObject(
       wheelBRMesh,
       world.createCollider(wheelBRShape, wheelBRBody)
     );
-    this.wheelBR.collider.setCollisionGroups(262145);
+    this.wheelBR.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFL = new PhysicalObject(
       wheelFLMesh,
       world.createCollider(wheelFLShape, wheelFLBody)
     );
-    this.wheelFL.collider.setCollisionGroups(262145);
+    this.wheelFL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFR = new PhysicalObject(
       wheelFRMesh,
       world.createCollider(wheelFRShape, wheelFRBody)
     );
-    this.wheelFR.collider.setCollisionGroups(262145);
+    this.wheelFR.collider.setCollisionGroups(WheelColliderGroup);
     this.axelFL = new PhysicalObject(
       axelFLMesh,
       world.createCollider(wheelFLShape, axelFLBody)
     );
 
-    this.axelFL.collider.setCollisionGroups(0);
+    this.axelFL.collider.setCollisionGroups(AxelColliderGroup);
     this.axelFR = new PhysicalObject(
       axelFRMesh,
       world.createCollider(wheelFRShape, axelFRBody)
     );
-    this.axelFR.collider.setCollisionGroups(0);
+    this.axelFR.collider.setCollisionGroups(AxelColliderGroup);
 
     world.createImpulseJoint(
       JointData.revolute(
