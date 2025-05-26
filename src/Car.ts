@@ -341,26 +341,36 @@ export class Car {
     const currentVelocity = this._getCurrentVelocity();
 
     let targetVelocity = 0;
-    let targetDamping = 2;
+    let targetDamping = 4;
 
-    const isAnyActionActive =
-      map.get('accelerate') ||
-      map.get('brake') ||
-      map.get('steer_left') ||
-      map.get('steer_right');
+    const handbrakeIsActive = map.get('handbrake');
 
-    if (!isAnyActionActive) {
+    const motorsIsActive = map.get('accelerate') || map.get('brake');
+
+    if (handbrakeIsActive) {
+      targetVelocity = 0;
+      targetDamping = 1000;
+    } else if (!motorsIsActive) {
       targetDamping = exponentialInterlopation(
-        2,
+        20,
         1000,
         Math.abs(currentVelocity),
-        8
+        6
       );
     } else {
+      const accelerateDampingInterpolation = exponentialInterlopation(
+        2,
+        6,
+        Math.abs(currentVelocity),
+        0.125
+      );
+
       if (map.get('accelerate')) {
-        targetVelocity = 50;
+        targetVelocity = 40;
+        targetDamping = accelerateDampingInterpolation;
       } else if (map.get('brake')) {
-        targetVelocity = -20;
+        targetVelocity = -15;
+        targetDamping = accelerateDampingInterpolation;
       }
     }
 

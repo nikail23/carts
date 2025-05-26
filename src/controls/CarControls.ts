@@ -31,6 +31,7 @@ export class CarControls {
       ['brake', map.get('KeyS')],
       ['steer_left', map.get('KeyA')],
       ['steer_right', map.get('KeyD')],
+      ['handbrake', map.get('Space')],
     ]);
   }
 }
