@@ -89,8 +89,6 @@ const clock = new Clock();
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
 
-console.log('car1', car);
-
 function animate() {
   requestAnimationFrame(animate);
 

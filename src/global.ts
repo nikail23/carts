@@ -17,7 +17,7 @@ export const camera = new PerspectiveCamera(
 );
 camera.position.z = 2.5;
 
-export const renderer = new WebGLRenderer();
+export const renderer = new WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
@@ -30,3 +30,12 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+export function exponentialInterlopation(
+  from: number,
+  to: number,
+  factor: number,
+  k: number
+): number {
+  return from + (to - from) * Math.exp(-k * factor);
+}

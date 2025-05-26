@@ -5,7 +5,7 @@ import {
   RevoluteImpulseJoint,
   RigidBodyDesc,
 } from '@dimforge/rapier3d';
-import { scene, world } from './global';
+import { exponentialInterlopation, scene, world } from './global';
 import PhysicalObject from './PhysicalObject';
 import { Mesh, Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
@@ -17,7 +17,12 @@ import {
   WheelColliderGroup,
 } from './ColliderGroup';
 
-export type CarEvent = 'accelerate' | 'brake' | 'steer_left' | 'steer_right';
+export type CarEvent =
+  | 'accelerate'
+  | 'brake'
+  | 'steer_left'
+  | 'steer_right'
+  | 'handbrake';
 export type CarEventMap = Map<CarEvent, boolean>;
 
 export class Car {
@@ -81,6 +86,7 @@ export class Car {
       RigidBodyDesc.dynamic()
         .setTranslation(position.x, position.y, position.z)
         .setCanSleep(false)
+        .setAdditionalMass(1000)
     );
 
     const wheelFlPosition = position.clone().add(this.flOffset);
@@ -89,48 +95,36 @@ export class Car {
     const wheelBrPosition = position.clone().add(this.brOffset);
 
     const wheelBLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelBlPosition.x,
-        wheelBlPosition.y,
-        wheelBlPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelBlPosition.x, wheelBlPosition.y, wheelBlPosition.z)
+        .setAdditionalMass(40)
     );
     const wheelBRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelBrPosition.x,
-        wheelBrPosition.y,
-        wheelBrPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelBrPosition.x, wheelBrPosition.y, wheelBrPosition.z)
+        .setAdditionalMass(40)
     );
     const wheelFLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelFlPosition.x,
-        wheelFlPosition.y,
-        wheelFlPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
+        .setAdditionalMass(40)
     );
     const wheelFRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelFrPosition.x,
-        wheelFrPosition.y,
-        wheelFrPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
+        .setAdditionalMass(40)
     );
 
     const axelFLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelFlPosition.x,
-        wheelFlPosition.y,
-        wheelFlPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
+        .setAdditionalMass(40)
     );
 
     const axelFRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic().setTranslation(
-        wheelFrPosition.x,
-        wheelFrPosition.y,
-        wheelFrPosition.z
-      )
+      RigidBodyDesc.dynamic()
+        .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
+        .setAdditionalMass(40)
     );
 
     const transmissionShape = ColliderDesc.trimesh(
@@ -248,6 +242,9 @@ export class Car {
       MotorModel.ForceBased
     );
 
+    (flAxelJoint as RevoluteImpulseJoint).setLimits(-Math.PI / 6, Math.PI / 6);
+    (frAxelJoint as RevoluteImpulseJoint).setLimits(-Math.PI / 6, Math.PI / 6);
+
     const wheelBLMotor = world.createImpulseJoint(
       JointData.revolute(
         new RapierVector3(this.blOffset.x, this.blOffset.y, this.blOffset.z),
@@ -306,7 +303,7 @@ export class Car {
     this.ready = true;
   }
 
-  public update(map?: CarEventMap): void {
+  public update(map: CarEventMap = new Map()): void {
     if (!this.ready) return;
 
     this.transmission.update();
@@ -317,46 +314,85 @@ export class Car {
     this.axelFL.update();
     this.axelFR.update();
 
-    if (!map) return;
+    this._setVelocity(map);
+    this._setSteering(map);
+  }
 
-    const targetVelocity = map.get('accelerate')
-      ? 20
-      : map.get('brake')
-        ? -8
-        : 0;
+  private _setSteering(map: CarEventMap): void {
     const targetSteer = map.get('steer_left')
       ? Math.PI / 6
       : map.get('steer_right')
         ? -Math.PI / 6
         : 0;
 
+    (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+      targetSteer,
+      500,
+      100
+    );
+    (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+      targetSteer,
+      500,
+      100
+    );
+  }
+
+  private _setVelocity(map: CarEventMap): void {
+    const currentVelocity = this._getCurrentVelocity();
+
+    let targetVelocity = 0;
+    let targetDamping = 2;
+
+    const isAnyActionActive =
+      map.get('accelerate') ||
+      map.get('brake') ||
+      map.get('steer_left') ||
+      map.get('steer_right');
+
+    if (!isAnyActionActive) {
+      targetDamping = exponentialInterlopation(
+        2,
+        1000,
+        Math.abs(currentVelocity),
+        8
+      );
+    } else {
+      if (map.get('accelerate')) {
+        targetVelocity = 50;
+      } else if (map.get('brake')) {
+        targetVelocity = -20;
+      }
+    }
+
+    console.log('Current Velocity:', currentVelocity);
+    console.log('Target Damping:', targetDamping);
+
     (this.wheelBLMotor as RevoluteImpulseJoint).configureMotorVelocity(
       targetVelocity,
-      2.0
+      targetDamping
     );
     (this.wheelBRMotor as RevoluteImpulseJoint).configureMotorVelocity(
       targetVelocity,
-      2.0
+      targetDamping
     );
 
     (this.wheelFLMotor as RevoluteImpulseJoint).configureMotorVelocity(
       targetVelocity,
-      2.0
+      targetDamping
     );
     (this.wheelFRMotor as RevoluteImpulseJoint).configureMotorVelocity(
       targetVelocity,
-      2.0
+      targetDamping
     );
+  }
 
-    (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
-      targetSteer,
-      100,
-      10
-    );
-    (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
-      targetSteer,
-      100,
-      10
+  private _getCurrentVelocity(): number {
+    const linvel = this.transmission?.body?.linvel();
+    return (
+      -1 *
+      new ThreeVector3(linvel.z, linvel.y, linvel.x).applyQuaternion(
+        this.transmission.object3D.quaternion
+      ).z
     );
   }
 }
