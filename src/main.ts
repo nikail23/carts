@@ -16,6 +16,7 @@ import {
   AmbientLight,
   Vector3 as ThreeVector3,
   Quaternion as ThreeQuaternion,
+  CameraHelper,
 } from 'three';
 import {
   camera,
@@ -25,12 +26,14 @@ import {
   stats,
   world,
 } from './global';
-import { Car } from './Car';
+import { Car } from './Car/Car';
 import { ObserverControls } from './controls';
 import { CarControls } from './controls/CarControls';
 import { CubeColliderGroup } from './ColliderGroup';
 
 // const controls = new ObserverControls(camera, renderer.domElement);
+
+const light = createLight();
 
 const physicalObjects: PhysicalObject[] = [];
 
@@ -74,10 +77,12 @@ for (const object of physicalObjects) {
   scene.add(object.object3D);
 }
 
-const light = new DirectionalLight(0xffffff, 1);
-light.position.set(5, 5, 5);
-light.castShadow = true;
-scene.add(light);
+light.target = car.transmission.object3D;
+car.transmission.object3D.add(light);
+
+const lightCameraHelper = new CameraHelper(light.shadow.camera);
+lightCameraHelper.visible = false;
+scene.add(lightCameraHelper);
 
 const ambientLight = new AmbientLight(0xffffff, 0.2);
 ambientLight.position.set(0, 0, 0);
@@ -88,6 +93,7 @@ const clock = new Clock();
 
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
+gui.add(lightCameraHelper, 'visible').name('Light Camera Helper');
 
 function animate() {
   requestAnimationFrame(animate);
@@ -111,6 +117,21 @@ function animate() {
   rapierDebugRenderer.update();
 
   renderer.render(scene, camera);
+}
+
+function createLight(): DirectionalLight {
+  const light = new DirectionalLight(0xffffff, 1);
+  light.position.set(15, 15, 15);
+  light.castShadow = true;
+  light.shadow.mapSize.width = 2048;
+  light.shadow.mapSize.height = 2048;
+  light.shadow.camera.near = 0.1;
+  light.shadow.camera.far = 200;
+  light.shadow.camera.left = -15;
+  light.shadow.camera.right = 15;
+  light.shadow.camera.top = 15;
+  light.shadow.camera.bottom = -15;
+  return light;
 }
 
 animate();

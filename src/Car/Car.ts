@@ -5,32 +5,35 @@ import {
   RevoluteImpulseJoint,
   RigidBodyDesc,
 } from '@dimforge/rapier3d';
-import { exponentialInterlopation, scene, world } from './global';
-import PhysicalObject from './PhysicalObject';
+import { scene, world } from '../global';
+import PhysicalObject from '../PhysicalObject';
 import { Mesh, Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
-import { Quaternion as ThreeQuaternion, Vector3 as ThreeVector3 } from 'three';
-import { Vector3 as RapierVector3 } from '@dimforge/rapier3d';
+import { Vector3 } from 'three';
 import {
   AxelColliderGroup,
   CarColliderGroup,
   WheelColliderGroup,
-} from './ColliderGroup';
-
-export type CarEvent =
-  | 'accelerate'
-  | 'brake'
-  | 'steer_left'
-  | 'steer_right'
-  | 'handbrake';
-export type CarEventMap = Map<CarEvent, boolean>;
+} from '../ColliderGroup';
+import {
+  CAR_ACCELERATE_DAMPING_INTERPOLATION,
+  CAR_ACCELERATE_SPEED,
+  CAR_BL_OFFSET,
+  CAR_BR_OFFSET,
+  CAR_BRAKE_SPEED,
+  CAR_FL_OFFSET,
+  CAR_FR_OFFSET,
+  CAR_NOACTIVE_DAMPING_INTERPOLATION,
+  CAR_STEERING_ANGLE,
+  CAR_STEERING_DAMPING,
+  CAR_STEERING_STIFFNESS,
+  CAR_TRANSMISSION_MASS,
+  CAR_WHEELS_MASS,
+  CAR_WHEELS_SHAPE,
+} from './Car.config';
+import type { CarEventMap } from './Car.model';
 
 export class Car {
-  public readonly flOffset = new ThreeVector3(-1.25, 0.29, 0.77);
-  public readonly frOffset = new ThreeVector3(-1.25, 0.29, -0.77);
-  public readonly blOffset = new ThreeVector3(1.25, 0.29, 0.77);
-  public readonly brOffset = new ThreeVector3(1.25, 0.29, -0.77);
-
   public transmission: PhysicalObject;
   public wheelFL: PhysicalObject;
   public wheelFR: PhysicalObject;
@@ -48,7 +51,7 @@ export class Car {
 
   public ready = false;
 
-  public async init(modelURL: string, position: ThreeVector3): Promise<void> {
+  public async init(modelURL: string, position: Vector3): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(modelURL);
 
     gltf.scene.traverse((child) => {
@@ -86,33 +89,33 @@ export class Car {
       RigidBodyDesc.dynamic()
         .setTranslation(position.x, position.y, position.z)
         .setCanSleep(false)
-        .setAdditionalMass(1000)
+        .setAdditionalMass(CAR_TRANSMISSION_MASS)
     );
 
-    const wheelFlPosition = position.clone().add(this.flOffset);
-    const wheelFrPosition = position.clone().add(this.frOffset);
-    const wheelBlPosition = position.clone().add(this.blOffset);
-    const wheelBrPosition = position.clone().add(this.brOffset);
+    const wheelFlPosition = position.clone().add(CAR_FL_OFFSET);
+    const wheelFrPosition = position.clone().add(CAR_FR_OFFSET);
+    const wheelBlPosition = position.clone().add(CAR_BL_OFFSET);
+    const wheelBrPosition = position.clone().add(CAR_BR_OFFSET);
 
     const wheelBLBody = world.createRigidBody(
       RigidBodyDesc.dynamic()
         .setTranslation(wheelBlPosition.x, wheelBlPosition.y, wheelBlPosition.z)
-        .setAdditionalMass(40)
+        .setAdditionalMass(CAR_WHEELS_MASS)
     );
     const wheelBRBody = world.createRigidBody(
       RigidBodyDesc.dynamic()
         .setTranslation(wheelBrPosition.x, wheelBrPosition.y, wheelBrPosition.z)
-        .setAdditionalMass(40)
+        .setAdditionalMass(CAR_WHEELS_MASS)
     );
     const wheelFLBody = world.createRigidBody(
       RigidBodyDesc.dynamic()
         .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
-        .setAdditionalMass(40)
+        .setAdditionalMass(CAR_WHEELS_MASS)
     );
     const wheelFRBody = world.createRigidBody(
       RigidBodyDesc.dynamic()
         .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
-        .setAdditionalMass(40)
+        .setAdditionalMass(CAR_WHEELS_MASS)
     );
 
     const axelFLBody = world.createRigidBody(
@@ -131,30 +134,6 @@ export class Car {
       transmissionMesh.geometry.attributes.position.array as Float32Array,
       transmissionMesh.geometry.index?.array as Uint32Array
     );
-    const wheelBLShape = ColliderDesc.cylinder(0.1, 0.3).setRotation(
-      new ThreeQuaternion().setFromAxisAngle(
-        new ThreeVector3(1, 0, 0),
-        Math.PI / 2
-      )
-    );
-    const wheelBRShape = ColliderDesc.cylinder(0.1, 0.3).setRotation(
-      new ThreeQuaternion().setFromAxisAngle(
-        new ThreeVector3(1, 0, 0),
-        Math.PI / 2
-      )
-    );
-    const wheelFLShape = ColliderDesc.cylinder(0.1, 0.3).setRotation(
-      new ThreeQuaternion().setFromAxisAngle(
-        new ThreeVector3(1, 0, 0),
-        Math.PI / 2
-      )
-    );
-    const wheelFRShape = ColliderDesc.cylinder(0.1, 0.3).setRotation(
-      new ThreeQuaternion().setFromAxisAngle(
-        new ThreeVector3(1, 0, 0),
-        Math.PI / 2
-      )
-    );
 
     this.transmission = new PhysicalObject(
       transmissionMesh,
@@ -163,41 +142,41 @@ export class Car {
     this.transmission.collider.setCollisionGroups(CarColliderGroup);
     this.wheelBL = new PhysicalObject(
       wheelBLMesh,
-      world.createCollider(wheelBLShape, wheelBLBody)
+      world.createCollider(CAR_WHEELS_SHAPE, wheelBLBody)
     );
     this.wheelBL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelBR = new PhysicalObject(
       wheelBRMesh,
-      world.createCollider(wheelBRShape, wheelBRBody)
+      world.createCollider(CAR_WHEELS_SHAPE, wheelBRBody)
     );
     this.wheelBR.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFL = new PhysicalObject(
       wheelFLMesh,
-      world.createCollider(wheelFLShape, wheelFLBody)
+      world.createCollider(CAR_WHEELS_SHAPE, wheelFLBody)
     );
     this.wheelFL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFR = new PhysicalObject(
       wheelFRMesh,
-      world.createCollider(wheelFRShape, wheelFRBody)
+      world.createCollider(CAR_WHEELS_SHAPE, wheelFRBody)
     );
     this.wheelFR.collider.setCollisionGroups(WheelColliderGroup);
     this.axelFL = new PhysicalObject(
       axelFLMesh,
-      world.createCollider(wheelFLShape, axelFLBody)
+      world.createCollider(CAR_WHEELS_SHAPE, axelFLBody)
     );
 
     this.axelFL.collider.setCollisionGroups(AxelColliderGroup);
     this.axelFR = new PhysicalObject(
       axelFRMesh,
-      world.createCollider(wheelFRShape, axelFRBody)
+      world.createCollider(CAR_WHEELS_SHAPE, axelFRBody)
     );
     this.axelFR.collider.setCollisionGroups(AxelColliderGroup);
 
     world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.blOffset.x, this.blOffset.y, this.blOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, -1)
+        CAR_BL_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, -1)
       ),
       transmissionBody,
       wheelBLBody,
@@ -205,9 +184,9 @@ export class Car {
     );
     world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.brOffset.x, this.brOffset.y, this.brOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, -1)
+        CAR_BR_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, -1)
       ),
       transmissionBody,
       wheelBRBody,
@@ -216,9 +195,9 @@ export class Car {
 
     const flAxelJoint = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.flOffset.x, this.flOffset.y, this.flOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 1, 0)
+        CAR_FL_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 1, 0)
       ),
       transmissionBody,
       axelFLBody,
@@ -230,9 +209,9 @@ export class Car {
 
     const frAxelJoint = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.frOffset.x, this.frOffset.y, this.frOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 1, 0)
+        CAR_FR_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 1, 0)
       ),
       transmissionBody,
       axelFRBody,
@@ -247,9 +226,9 @@ export class Car {
 
     const wheelBLMotor = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.blOffset.x, this.blOffset.y, this.blOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 1)
+        CAR_BL_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 1)
       ),
       transmissionBody,
       wheelBLBody,
@@ -259,9 +238,9 @@ export class Car {
 
     const wheelBRMotor = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(this.brOffset.x, this.brOffset.y, this.brOffset.z),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 1)
+        CAR_BR_OFFSET,
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 1)
       ),
       transmissionBody,
       wheelBRBody,
@@ -271,9 +250,9 @@ export class Car {
 
     const wheelFLMotor = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 1)
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 1)
       ),
       axelFLBody,
       wheelFLBody,
@@ -283,9 +262,9 @@ export class Car {
 
     const wheelFRMotor = world.createImpulseJoint(
       JointData.revolute(
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 0),
-        new RapierVector3(0, 0, 1)
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 1)
       ),
       axelFRBody,
       wheelFRBody,
@@ -320,79 +299,76 @@ export class Car {
 
   private _setSteering(map: CarEventMap): void {
     const targetSteer = map.get('steer_left')
-      ? Math.PI / 6
+      ? CAR_STEERING_ANGLE
       : map.get('steer_right')
-        ? -Math.PI / 6
+        ? -CAR_STEERING_ANGLE
         : 0;
 
     (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
       targetSteer,
-      500,
-      100
+      CAR_STEERING_STIFFNESS,
+      CAR_STEERING_DAMPING
     );
     (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
       targetSteer,
-      500,
-      100
+      CAR_STEERING_STIFFNESS,
+      CAR_STEERING_DAMPING
     );
   }
 
   private _setVelocity(map: CarEventMap): void {
     const currentVelocity = this._getCurrentVelocity();
 
-    let targetVelocity = 0;
-    let targetDamping = 4;
+    let frontWheelsVelocity = 0;
+    let frontWheelsDamping = 4;
+    let backWheelsVelocity = 0;
+    let backWheelsDamping = 4;
 
     const handbrakeIsActive = map.get('handbrake');
 
     const motorsIsActive = map.get('accelerate') || map.get('brake');
 
     if (handbrakeIsActive) {
-      targetVelocity = 0;
-      targetDamping = 1000;
+      backWheelsVelocity = 0;
+      backWheelsDamping = 1000;
     } else if (!motorsIsActive) {
-      targetDamping = exponentialInterlopation(
-        20,
-        1000,
-        Math.abs(currentVelocity),
-        6
-      );
+      const dampingInterpolation =
+        CAR_NOACTIVE_DAMPING_INTERPOLATION(currentVelocity);
+      frontWheelsDamping = dampingInterpolation;
+      backWheelsDamping = dampingInterpolation;
     } else {
-      const accelerateDampingInterpolation = exponentialInterlopation(
-        2,
-        6,
-        Math.abs(currentVelocity),
-        0.125
-      );
+      const dampingInterpolation =
+        CAR_ACCELERATE_DAMPING_INTERPOLATION(currentVelocity);
 
       if (map.get('accelerate')) {
-        targetVelocity = 40;
-        targetDamping = accelerateDampingInterpolation;
+        frontWheelsVelocity = CAR_ACCELERATE_SPEED;
+        backWheelsVelocity = CAR_ACCELERATE_SPEED;
+        frontWheelsDamping = dampingInterpolation;
+        backWheelsDamping = dampingInterpolation;
       } else if (map.get('brake')) {
-        targetVelocity = -15;
-        targetDamping = accelerateDampingInterpolation;
+        frontWheelsVelocity = CAR_BRAKE_SPEED;
+        backWheelsVelocity = CAR_BRAKE_SPEED;
+        frontWheelsDamping = dampingInterpolation;
+        backWheelsDamping = dampingInterpolation;
       }
     }
 
-    console.log('Current Velocity:', currentVelocity);
-    console.log('Target Damping:', targetDamping);
-
     (this.wheelBLMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      targetDamping
+      backWheelsVelocity,
+      backWheelsDamping
     );
     (this.wheelBRMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      targetDamping
+      backWheelsVelocity,
+      backWheelsDamping
     );
 
     (this.wheelFLMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      targetDamping
+      frontWheelsVelocity,
+      frontWheelsDamping
     );
     (this.wheelFRMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      targetVelocity,
-      targetDamping
+      frontWheelsVelocity,
+      frontWheelsDamping
     );
   }
 
@@ -400,7 +376,7 @@ export class Car {
     const linvel = this.transmission?.body?.linvel();
     return (
       -1 *
-      new ThreeVector3(linvel.z, linvel.y, linvel.x).applyQuaternion(
+      new Vector3(linvel.z, linvel.y, linvel.x).applyQuaternion(
         this.transmission.object3D.quaternion
       ).z
     );

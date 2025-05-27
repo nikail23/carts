@@ -1,7 +1,7 @@
 import { Object3D, PerspectiveCamera, Vector3 } from 'three';
 import { KeyControls } from './KeyControls';
 import { MouseControls } from './MouseControls';
-import { Car, type CarEventMap } from '../Car';
+import { Car, type CarEventMap } from '../Car/Car';
 
 export class CarControls {
   public keyControls: KeyControls;

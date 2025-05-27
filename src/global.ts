@@ -1,5 +1,11 @@
 import { World } from '@dimforge/rapier3d';
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import {
+  DirectionalLight,
+  PCFSoftShadowMap,
+  PerspectiveCamera,
+  Scene,
+  WebGLRenderer,
+} from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
 import RapierDebugRenderer from './RapierDebugRenderer';
 
@@ -20,6 +26,7 @@ camera.position.z = 2.5;
 export const renderer = new WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 export const stats = new Stats();
@@ -30,12 +37,3 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
-export function exponentialInterlopation(
-  from: number,
-  to: number,
-  factor: number,
-  k: number
-): number {
-  return from + (to - from) * Math.exp(-k * factor);
-}
