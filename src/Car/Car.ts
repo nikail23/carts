@@ -7,7 +7,7 @@ import {
 } from '@dimforge/rapier3d';
 import { scene, world } from '../global';
 import PhysicalObject from '../PhysicalObject';
-import { Mesh, Object3D } from 'three';
+import { Mesh, Object3D, type TypedArray } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import { Vector3 } from 'three';
 import {
@@ -32,6 +32,7 @@ import {
   CAR_WHEELS_SHAPE,
 } from './Car.config';
 import type { CarEventMap } from './Car.model';
+import { truncatePositions } from '../utils';
 
 export class Car {
   public transmission: PhysicalObject;
@@ -130,10 +131,15 @@ export class Car {
         .setAdditionalMass(40)
     );
 
-    const transmissionShape = ColliderDesc.trimesh(
-      transmissionMesh.geometry.attributes.position.array as Float32Array,
-      transmissionMesh.geometry.index?.array as Uint32Array
+    const transmissionShape = ColliderDesc.convexHull(
+      new Float32Array(
+        truncatePositions(transmissionMesh.geometry.attributes.position.array, {
+          z: 0.9,
+        })
+      )
     );
+
+    console.log(transmissionMesh);
 
     this.transmission = new PhysicalObject(
       transmissionMesh,
