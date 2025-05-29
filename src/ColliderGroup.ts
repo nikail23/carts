@@ -13,9 +13,6 @@ function calculateColliderGroup(membership: number[], filter: number[]) {
     return acc | (0b0000_0000_0000_0001 << group);
   }, 0b0000_0000_0000_0000);
 
-  console.log(membershipMask.toString(2).padStart(16, '0'));
-  console.log(filterMask.toString(2).padStart(16, '0'));
-
   return (membershipMask << 16) | filterMask;
 }
 

@@ -7,6 +7,8 @@ export class MouseControls {
   public target = new Object3D();
   public locked = false;
 
+  private _attachedMesh: Object3D | null = null;
+
   protected static listenersInitialized = false;
 
   private _camera: PerspectiveCamera;
@@ -26,13 +28,13 @@ export class MouseControls {
   }
 
   public attachToMesh(mesh: Object3D, offset: Vector3 = new Vector3(0, 0, 0)) {
-    if (this.target.parent) {
-      this.target.parent.remove(this.target);
-    }
+    this._attachedMesh?.remove(this.target);
 
-    this.target.position.copy(mesh.position).add(offset);
+    this._attachedMesh = mesh;
 
-    mesh.add(this.target);
+    this._attachedMesh.add(this.target);
+
+    this.target.position.copy(offset);
   }
 
   public update() {
@@ -41,6 +43,8 @@ export class MouseControls {
 
   private _onDocumentMouseMove(e: MouseEvent) {
     if (!this.locked) return;
+
+    console.log(this.pivot.parent);
 
     this.yaw.rotation.y -= e.movementX * 0.002;
     const v = this.pitch.rotation.x - e.movementY * 0.002;

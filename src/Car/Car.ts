@@ -33,6 +33,7 @@ import {
 } from './Car.config';
 import type { CarEventMap } from './Car.model';
 import { truncatePositions } from '../utils';
+import type { CarControls } from '../controls/CarControls';
 
 export class Car {
   public transmission: PhysicalObject;
@@ -51,6 +52,8 @@ export class Car {
   public frAxelJoint: RevoluteImpulseJoint;
 
   public ready = false;
+
+  private _controller: CarControls | null = null;
 
   public async init(modelURL: string, position: Vector3): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(modelURL);
@@ -288,7 +291,23 @@ export class Car {
     this.ready = true;
   }
 
-  public update(map: CarEventMap = new Map()): void {
+  public attachController(controller: CarControls): void {
+    controller?.parent?.removeController();
+
+    this._controller = controller;
+    this._controller.attachTo(
+      this.transmission.object3D,
+      new Vector3(0, 0.5, 0)
+    );
+
+    this._controller.parent = this;
+  }
+
+  public removeController(): void {
+    this._controller = null;
+  }
+
+  public update(): void {
     if (!this.ready) return;
 
     this.transmission.update();
@@ -298,6 +317,8 @@ export class Car {
     this.wheelBR.update();
     this.axelFL.update();
     this.axelFR.update();
+
+    const map = this._controller?.update() ?? new Map();
 
     this._setVelocity(map);
     this._setSteering(map);

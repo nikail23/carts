@@ -1,24 +1,29 @@
 import { Object3D, PerspectiveCamera, Vector3 } from 'three';
 import { KeyControls } from './KeyControls';
 import { MouseControls } from './MouseControls';
-import { Car, type CarEventMap } from '../Car/Car';
+import type { CarEventMap } from '../Car/Car.model';
+import type { Car } from '../Car/Car';
 
 export class CarControls {
   public keyControls: KeyControls;
   public mouseControls: MouseControls;
+
+  public parent: Car | null = null;
 
   public constructor(domElement: HTMLElement, camera: PerspectiveCamera) {
     this.keyControls = new KeyControls();
     this.mouseControls = new MouseControls(domElement, camera);
   }
 
-  public attachToCar(
-    car: Car,
-    offset: Vector3 = new Vector3(0, 1, 0)
-  ): Object3D {
-    this.mouseControls.attachToMesh(car.transmission.object3D, offset);
-
+  public get pivot(): Object3D {
     return this.mouseControls.pivot;
+  }
+
+  public attachTo(
+    object3D: Object3D,
+    offset: Vector3 = new Vector3(0, 1, 0)
+  ): void {
+    this.mouseControls.attachToMesh(object3D, offset);
   }
 
   public update(): CarEventMap {

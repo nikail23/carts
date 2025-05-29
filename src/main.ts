@@ -67,8 +67,8 @@ const car2 = new Car();
 await car2.init('/models/car2.glb', new ThreeVector3(-3, 0, -3));
 
 const controls = new CarControls(renderer.domElement, camera);
-const pivot = controls.attachToCar(car, new ThreeVector3(0, 0.5, 0));
-scene.add(pivot);
+scene.add(controls.pivot);
+car.attachController(controls);
 
 physicalObjects.push(cube);
 physicalObjects.push(ground);
@@ -95,6 +95,20 @@ const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
 gui.add(lightCameraHelper, 'visible').name('Light Camera Helper');
 
+const cars = { mainCar: car, policeCar: car2 };
+const carNames = Object.keys(cars);
+const carSelection = { selected: carNames[0] };
+gui
+  .add(carSelection, 'selected', carNames)
+  .name('Car')
+  .onChange((name: string) => {
+    const car = cars[name];
+    car.attachController(controls);
+    light.removeFromParent();
+    light.target = car.transmission.object3D;
+    car.transmission.object3D.add(light);
+  });
+
 function animate() {
   requestAnimationFrame(animate);
 
@@ -108,9 +122,7 @@ function animate() {
     object.update();
   }
 
-  const carEventMap = controls.update();
-
-  car.update(carEventMap);
+  car.update();
 
   car2.update();
 
