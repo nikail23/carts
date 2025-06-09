@@ -31,11 +31,12 @@ import {
   CAR_WHEELS_MASS,
   CAR_WHEELS_SHAPE,
 } from './Car.config';
-import type { CarEventMap } from './Car.model';
+import type { CarEventMap, CarWheelsPosition } from './Car.model';
 import { truncatePositions } from '../utils';
 import type { CarControls } from '../controls/CarControls';
 
 export class Car {
+  public id = crypto.randomUUID();
   public transmission: PhysicalObject;
   public wheelFL: PhysicalObject;
   public wheelFR: PhysicalObject;
@@ -54,6 +55,25 @@ export class Car {
   public ready = false;
 
   private _controller: CarControls | null = null;
+
+  private _map: CarEventMap = new Map();
+
+  public get speed(): number {
+    return this._getCurrentVelocity();
+  }
+
+  public get wheelsPositions(): CarWheelsPosition {
+    return {
+      fl: this.wheelFL.object3D.getWorldPosition(new Vector3()),
+      fr: this.wheelFR.object3D.getWorldPosition(new Vector3()),
+      bl: this.wheelBL.object3D.getWorldPosition(new Vector3()),
+      br: this.wheelBR.object3D.getWorldPosition(new Vector3()),
+    };
+  }
+
+  public get eventMap(): CarEventMap {
+    return this._map;
+  }
 
   public async init(modelURL: string, position: Vector3): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(modelURL);
@@ -141,8 +161,6 @@ export class Car {
         })
       )
     );
-
-    console.log(transmissionMesh);
 
     this.transmission = new PhysicalObject(
       transmissionMesh,
@@ -318,13 +336,15 @@ export class Car {
     this.axelFL.update();
     this.axelFR.update();
 
-    const map = this._controller?.update() ?? new Map();
+    this._map = this._controller?.update() ?? new Map();
 
-    this._setVelocity(map);
-    this._setSteering(map);
+    this._setVelocity();
+    this._setSteering();
   }
 
-  private _setSteering(map: CarEventMap): void {
+  private _setSteering(): void {
+    const map = this._map;
+
     const targetSteer = map.get('steer_left')
       ? CAR_STEERING_ANGLE
       : map.get('steer_right')
@@ -343,7 +363,9 @@ export class Car {
     );
   }
 
-  private _setVelocity(map: CarEventMap): void {
+  private _setVelocity(): void {
+    const map = this._map;
+
     const currentVelocity = this._getCurrentVelocity();
 
     let frontWheelsVelocity = 0;

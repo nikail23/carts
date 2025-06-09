@@ -44,8 +44,6 @@ export class MouseControls {
   private _onDocumentMouseMove(e: MouseEvent) {
     if (!this.locked) return;
 
-    console.log(this.pivot.parent);
-
     this.yaw.rotation.y -= e.movementX * 0.002;
     const v = this.pitch.rotation.x - e.movementY * 0.002;
 

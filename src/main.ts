@@ -17,6 +17,7 @@ import {
   Vector3 as ThreeVector3,
   Quaternion as ThreeQuaternion,
   CameraHelper,
+  ShaderMaterial,
 } from 'three';
 import {
   camera,
@@ -26,29 +27,14 @@ import {
   stats,
   world,
 } from './global';
-import { Car } from './Car/Car';
-import { ObserverControls } from './controls';
+import { Car } from './car/Car';
 import { CarControls } from './controls/CarControls';
 import { CubeColliderGroup } from './ColliderGroup';
-
-// const controls = new ObserverControls(camera, renderer.domElement);
+import { Ground } from './ground/Ground';
 
 const light = createLight();
 
 const physicalObjects: PhysicalObject[] = [];
-
-const ground = new PhysicalObject(
-  new Mesh(
-    new PlaneGeometry(1000, 1000, 1, 1),
-    new MeshStandardMaterial({ color: 0xffffff })
-  ),
-  world.createCollider(
-    ColliderDesc.cuboid(500, 0.001, 500).setTranslation(0, -1, 0)
-  )
-);
-ground.object3D.rotateX(-Math.PI / 2);
-ground.object3D.position.y = -1;
-ground.object3D.receiveShadow = true;
 
 const cube = new PhysicalObject(
   new Mesh(new BoxGeometry(), new MeshStandardMaterial({ color: 0x555555 })),
@@ -60,6 +46,8 @@ const cube = new PhysicalObject(
 cube.object3D.castShadow = true;
 cube.collider.setCollisionGroups(CubeColliderGroup);
 
+let currentCar: Car;
+
 const car = new Car();
 await car.init('/models/car1.glb', new ThreeVector3(3, 0, 3));
 
@@ -69,6 +57,9 @@ await car2.init('/models/car2.glb', new ThreeVector3(-3, 0, -3));
 const controls = new CarControls(renderer.domElement, camera);
 scene.add(controls.pivot);
 car.attachController(controls);
+currentCar = car;
+
+const ground = new Ground(renderer, [car, car2]);
 
 physicalObjects.push(cube);
 physicalObjects.push(ground);
@@ -78,15 +69,11 @@ for (const object of physicalObjects) {
 }
 
 light.target = car.transmission.object3D;
-car.transmission.object3D.add(light);
+scene.add(light);
 
 const lightCameraHelper = new CameraHelper(light.shadow.camera);
 lightCameraHelper.visible = false;
 scene.add(lightCameraHelper);
-
-const ambientLight = new AmbientLight(0xffffff, 0.2);
-ambientLight.position.set(0, 0, 0);
-scene.add(ambientLight);
 
 let delta: number = 0;
 const clock = new Clock();
@@ -102,11 +89,9 @@ gui
   .add(carSelection, 'selected', carNames)
   .name('Car')
   .onChange((name: string) => {
-    const car = cars[name];
-    car.attachController(controls);
-    light.removeFromParent();
-    light.target = car.transmission.object3D;
-    car.transmission.object3D.add(light);
+    currentCar = cars[name];
+    currentCar.attachController(controls);
+    light.target = currentCar.transmission.object3D;
   });
 
 function animate() {
@@ -123,8 +108,9 @@ function animate() {
   }
 
   car.update();
-
   car2.update();
+
+  ground.update();
 
   rapierDebugRenderer.update();
 
@@ -133,12 +119,12 @@ function animate() {
 
 function createLight(): DirectionalLight {
   const light = new DirectionalLight(0xffffff, 1);
-  light.position.set(15, 15, 15);
+  light.position.set(150, 100, 115);
   light.castShadow = true;
   light.shadow.mapSize.width = 2048;
   light.shadow.mapSize.height = 2048;
   light.shadow.camera.near = 0.1;
-  light.shadow.camera.far = 200;
+  light.shadow.camera.far = 400;
   light.shadow.camera.left = -15;
   light.shadow.camera.right = 15;
   light.shadow.camera.top = 15;

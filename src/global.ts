@@ -1,17 +1,28 @@
 import { World } from '@dimforge/rapier3d';
 import {
   DirectionalLight,
+  EquirectangularReflectionMapping,
   PCFSoftShadowMap,
   PerspectiveCamera,
   Scene,
+  TextureLoader,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
 import RapierDebugRenderer from './RapierDebugRenderer';
+import { RGBELoader } from 'three/examples/jsm/Addons.js';
 
 export const world = new World({ x: 0.0, y: -9.81, z: 0.0 });
 
 export const scene = new Scene();
+const environmentTexture = await new RGBELoader().loadAsync(
+  'environment/map.hdr'
+);
+environmentTexture.mapping = EquirectangularReflectionMapping;
+scene.environment = environmentTexture;
+scene.background = environmentTexture;
+scene.environmentIntensity = 0.7;
 
 export const rapierDebugRenderer = new RapierDebugRenderer(scene, world);
 
