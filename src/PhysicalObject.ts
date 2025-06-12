@@ -16,7 +16,7 @@ export default class PhysicalObject {
     this.basePosition = new Vector3();
   }
 
-  public update(): void {
+  public update(delta?: number): void {
     if (!this.body) return;
 
     const translation = this.body.translation();

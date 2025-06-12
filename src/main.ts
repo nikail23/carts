@@ -104,13 +104,13 @@ function animate() {
   world.step();
 
   for (const object of physicalObjects) {
-    object.update();
+    object.update(delta);
   }
 
   car.update();
   car2.update();
 
-  ground.update();
+  ground.update(delta);
 
   rapierDebugRenderer.update();
 

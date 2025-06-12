@@ -6,19 +6,19 @@ import {
   PlaneGeometry,
   WebGLRenderer,
   WebGLRenderTarget,
-  MeshBasicMaterial,
   Scene,
-  Object3D,
   Vector3,
   LinearFilter,
   RGBAFormat,
   CameraHelper,
   AmbientLight,
-  InstancedMesh,
+  Quaternion,
 } from 'three';
 import { world } from '../global';
 import PhysicalObject from '../PhysicalObject';
 import type { Car } from '../car/Car';
+import { WheelTireMark } from './WheelTireMark';
+import type { CarWheels } from '../car/Car.model';
 
 export class Ground extends PhysicalObject {
   private _size = 100;
@@ -28,10 +28,8 @@ export class Ground extends PhysicalObject {
   private _renderTarget: WebGLRenderTarget;
   private _scene: Scene;
   private _cars: Car[] = [];
-  private _wheel: InstancedMesh;
+  private _carsTireMarks: Map<Car, CarWheels<WheelTireMark>>;
   private _renderer: WebGLRenderer;
-  private _dummy = new Object3D();
-  private _currentTireIndex = 0;
   private _maxTiresInstances = 500;
 
   public get cameraHelper(): CameraHelper {
@@ -47,11 +45,51 @@ export class Ground extends PhysicalObject {
 
     this._scene = new Scene();
 
-    this._wheel = this._createWheelInstancedMesh(
-      this._cars[0].wheelFL.object3D
+    this._carsTireMarks = new Map(
+      this._cars.map((car) => {
+        const flMesh = car.wheelFL.object3D.clone() as Mesh;
+        flMesh.geometry = flMesh.geometry.clone();
+        flMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        flMesh.geometry.scale(0.5, 1, 0.95);
+
+        const frMesh = car.wheelFR.object3D.clone() as Mesh;
+        frMesh.geometry = frMesh.geometry.clone();
+        frMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        frMesh.geometry.scale(0.5, 1, 0.95);
+
+        const blMesh = car.wheelBL.object3D.clone() as Mesh;
+        blMesh.geometry = blMesh.geometry.clone();
+        blMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        blMesh.geometry.scale(0.5, 1, 0.95);
+
+        const brMesh = car.wheelBR.object3D.clone() as Mesh;
+        brMesh.geometry = brMesh.geometry.clone();
+        brMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        brMesh.geometry.scale(0.5, 1, 0.95);
+
+        return [
+          car,
+          {
+            fl: new WheelTireMark(flMesh, this._maxTiresInstances),
+            fr: new WheelTireMark(frMesh, this._maxTiresInstances),
+            bl: new WheelTireMark(blMesh, this._maxTiresInstances),
+            br: new WheelTireMark(brMesh, this._maxTiresInstances),
+          },
+        ];
+      })
     );
 
-    this._scene.add(this._wheel);
+    Array.from(this._carsTireMarks.values()).forEach((wheels) => {
+      this._scene.add(wheels.fl, wheels.fr, wheels.bl, wheels.br);
+    });
 
     this._renderTarget = new WebGLRenderTarget(2048, 2048, {
       minFilter: LinearFilter,
@@ -110,31 +148,25 @@ export class Ground extends PhysicalObject {
     return floorCopy as Mesh;
   }
 
-  public update(): void {
+  public update(delta: number): void {
     this._paintTires();
 
+    this._carsTireMarks.forEach((wheels) => {
+      wheels.fl.update(delta);
+      wheels.fr.update(delta);
+      wheels.bl.update(delta);
+      wheels.br.update(delta);
+    });
+
     this._renderer.setRenderTarget(this._renderTarget);
+    this._renderer.clear(true, true, true);
     this._renderer.render(this._scene, this._camera);
     this._renderer.setRenderTarget(null);
   }
 
-  private _createWheelInstancedMesh(wheelObject3D: Object3D): InstancedMesh {
-    const wheelGeometry = (wheelObject3D as Mesh).geometry.clone();
-
-    return new InstancedMesh(
-      wheelGeometry,
-      new MeshBasicMaterial({
-        color: 0x555555,
-        transparent: true,
-        opacity: 0.5,
-      }),
-      this._maxTiresInstances
-    );
-  }
-
   private _paintTires(): void {
     this._cars.forEach((car) => {
-      if (!car.eventMap.get('handbrake')) return;
+      if (!car.eventMap.get('handbrake') || car.speed < 0.1) return;
 
       const positions = {
         fl: car.wheelFL.object3D.getWorldPosition(new Vector3()),
@@ -150,29 +182,12 @@ export class Ground extends PhysicalObject {
         br: car.wheelBR.object3D.rotation.y,
       };
 
-      this._paintNextTire(positions.fl.x, positions.fl.z, rotations.fl);
-      this._paintNextTire(positions.fr.x, positions.fr.z, rotations.fr);
-      this._paintNextTire(positions.bl.x, positions.bl.z, rotations.bl);
-      this._paintNextTire(positions.br.x, positions.br.z, rotations.br);
+      const tireMarksMesh = this._carsTireMarks.get(car);
+
+      tireMarksMesh.fl.addTireMark(positions.fl, rotations.fl);
+      tireMarksMesh.fr.addTireMark(positions.fr, rotations.fr);
+      tireMarksMesh.bl.addTireMark(positions.bl, rotations.bl);
+      tireMarksMesh.br.addTireMark(positions.br, rotations.br);
     });
-  }
-
-  private _paintNextTire(x: number, z: number, rotation: number) {
-    this._paintTireAt(
-      this._currentTireIndex,
-      new Vector3(x, this._position.y, z),
-      rotation
-    );
-    this._currentTireIndex =
-      (this._currentTireIndex + 1) % this._maxTiresInstances;
-  }
-
-  private _paintTireAt(index: number, position: Vector3, rotation: number) {
-    this._dummy.position.copy(position);
-    this._dummy.rotation.set(-Math.PI / 2, 0, rotation);
-
-    this._dummy.updateMatrix();
-    this._wheel.setMatrixAt(index, this._dummy.matrix);
-    this._wheel.instanceMatrix.needsUpdate = true;
   }
 }

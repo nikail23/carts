@@ -31,7 +31,7 @@ import {
   CAR_WHEELS_MASS,
   CAR_WHEELS_SHAPE,
 } from './Car.config';
-import type { CarEventMap, CarWheelsPosition } from './Car.model';
+import type { CarEventMap, CarWheels } from './Car.model';
 import { truncatePositions } from '../utils';
 import type { CarControls } from '../controls/CarControls';
 
@@ -62,7 +62,7 @@ export class Car {
     return this._getCurrentVelocity();
   }
 
-  public get wheelsPositions(): CarWheelsPosition {
+  public get wheelsPositions(): CarWheels<Vector3> {
     return {
       fl: this.wheelFL.object3D.getWorldPosition(new Vector3()),
       fr: this.wheelFR.object3D.getWorldPosition(new Vector3()),
