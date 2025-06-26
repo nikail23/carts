@@ -5,7 +5,7 @@ import {
 } from '@dimforge/rapier3d';
 import './style.css';
 import { GUI } from 'dat.gui';
-import PhysicalObject from './PhysicalObject';
+import PhysicalObject from './scene/PhysicalObject';
 import {
   Mesh,
   BoxGeometry,
@@ -29,46 +29,47 @@ import {
 } from './global';
 import { Car } from './car/Car';
 import { CarControls } from './controls/CarControls';
-import { CubeColliderGroup } from './ColliderGroup';
+import { CubeColliderGroup } from './scene/ColliderGroup';
 import { Ground } from './ground/Ground';
 
 const light = createLight();
 
-const physicalObjects: PhysicalObject[] = [];
-
 const cube = new PhysicalObject(
-  new Mesh(new BoxGeometry(), new MeshStandardMaterial({ color: 0x555555 })),
-  world.createCollider(
-    ColliderDesc.cuboid(0.5, 0.5, 0.5),
-    world.createRigidBody(RigidBodyDesc.dynamic())
-  )
+  new BoxGeometry(),
+  new MeshStandardMaterial({ color: 0x555555 }),
+  ColliderDesc.cuboid(0.5, 0.5, 0.5),
+  RigidBodyDesc.dynamic()
 );
-cube.object3D.castShadow = true;
+cube.castShadow = true;
 cube.collider.setCollisionGroups(CubeColliderGroup);
+scene.addPhysical(cube);
 
 let currentCar: Car;
 
 const car = new Car();
-await car.init('/models/car1.glb', new ThreeVector3(3, 0, 3));
+await car.init('/models/car1.glb', new ThreeVector3(3, -1, 3));
 
 const car2 = new Car();
-await car2.init('/models/car2.glb', new ThreeVector3(-3, 0, -3));
+await car2.init('/models/car2.glb', new ThreeVector3(-3, -1, -3));
+
+car.addMeshesToScene(scene);
+car2.addMeshesToScene(scene);
 
 const controls = new CarControls(renderer.domElement, camera);
 scene.add(controls.pivot);
 car.attachController(controls);
 currentCar = car;
 
-const ground = new Ground(renderer, [car, car2]);
+const ground = new Ground(renderer, 25);
+ground.setPosition(new ThreeVector3(0, -2, 0));
+ground.setRotation(
+  new ThreeQuaternion().setFromAxisAngle(new ThreeVector3(1, 0, 0), 0.1)
+);
+ground.attachCars([car, car2]);
+scene.add(ground.cameraHelper);
+scene.addPhysical(ground);
 
-physicalObjects.push(cube);
-physicalObjects.push(ground);
-
-for (const object of physicalObjects) {
-  scene.add(object.object3D);
-}
-
-light.target = car.transmission.object3D;
+light.target = car.transmission!;
 scene.add(light);
 
 const lightCameraHelper = new CameraHelper(light.shadow.camera);
@@ -78,20 +79,21 @@ scene.add(lightCameraHelper);
 let delta: number = 0;
 const clock = new Clock();
 
+const cars: Record<string, Car> = { mainCar: car, policeCar: car2 };
+const carNames = Object.keys(cars);
+const carSelection = { selected: carNames[0] };
+
 const gui = new GUI();
 gui.add(rapierDebugRenderer, 'enabled').name('Rapier Degug Renderer');
 gui.add(lightCameraHelper, 'visible').name('Light Camera Helper');
-
-const cars = { mainCar: car, policeCar: car2 };
-const carNames = Object.keys(cars);
-const carSelection = { selected: carNames[0] };
+gui.add(ground.cameraHelper, 'visible').name('Ground Camera Helper');
 gui
   .add(carSelection, 'selected', carNames)
   .name('Car')
   .onChange((name: string) => {
     currentCar = cars[name];
     currentCar.attachController(controls);
-    light.target = currentCar.transmission.object3D;
+    light.target = currentCar.transmission!;
   });
 
 function animate() {
@@ -103,9 +105,7 @@ function animate() {
   world.timestep = Math.min(delta, 0.1);
   world.step();
 
-  for (const object of physicalObjects) {
-    object.update(delta);
-  }
+  scene.update(delta);
 
   car.update();
   car2.update();

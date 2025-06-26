@@ -1,4 +1,4 @@
-import { ColliderDesc } from '@dimforge/rapier3d';
+import { ColliderDesc, RigidBodyDesc } from '@dimforge/rapier3d';
 import {
   Mesh,
   MeshStandardMaterial,
@@ -13,97 +13,63 @@ import {
   CameraHelper,
   AmbientLight,
   Quaternion,
+  Object3D,
 } from 'three';
-import { world } from '../global';
-import PhysicalObject from '../PhysicalObject';
+import PhysicalObject from '../scene/PhysicalObject';
 import type { Car } from '../car/Car';
 import { WheelTireMark } from './WheelTireMark';
 import type { CarWheels } from '../car/Car.model';
+import { FloorColliderGroup } from '../scene/ColliderGroup';
 
 export class Ground extends PhysicalObject {
-  private _size = 100;
-  private _position = new Vector3(0, -1, 0);
+  public cameraHelper: CameraHelper;
+  private _size = 10;
   private _camera: OrthographicCamera;
-  private _cameraHelper: CameraHelper;
+  private _cameraPlaceholder: Object3D;
   private _renderTarget: WebGLRenderTarget;
   private _scene: Scene;
   private _cars: Car[] = [];
-  private _carsTireMarks: Map<Car, CarWheels<WheelTireMark>>;
+  private _carsTireMarks: Map<Car, CarWheels<WheelTireMark> | null>;
   private _renderer: WebGLRenderer;
-  private _maxTiresInstances = 500;
+  private _maxTiresInstances = 2000; // Увеличили с 500 до 2000
 
-  public get cameraHelper(): CameraHelper {
-    return this._cameraHelper;
-  }
-
-  constructor(renderer: WebGLRenderer, cars: Car[]) {
-    super(null, null);
-
-    this._cars = cars;
-    this._renderer = renderer;
-    this._renderer.autoClear = false;
-
-    this._scene = new Scene();
-
-    this._carsTireMarks = new Map(
-      this._cars.map((car) => {
-        const flMesh = car.wheelFL.object3D.clone() as Mesh;
-        flMesh.geometry = flMesh.geometry.clone();
-        flMesh.geometry.applyQuaternion(
-          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-        );
-        flMesh.geometry.scale(0.5, 1, 0.95);
-
-        const frMesh = car.wheelFR.object3D.clone() as Mesh;
-        frMesh.geometry = frMesh.geometry.clone();
-        frMesh.geometry.applyQuaternion(
-          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-        );
-        frMesh.geometry.scale(0.5, 1, 0.95);
-
-        const blMesh = car.wheelBL.object3D.clone() as Mesh;
-        blMesh.geometry = blMesh.geometry.clone();
-        blMesh.geometry.applyQuaternion(
-          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-        );
-        blMesh.geometry.scale(0.5, 1, 0.95);
-
-        const brMesh = car.wheelBR.object3D.clone() as Mesh;
-        brMesh.geometry = brMesh.geometry.clone();
-        brMesh.geometry.applyQuaternion(
-          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-        );
-        brMesh.geometry.scale(0.5, 1, 0.95);
-
-        return [
-          car,
-          {
-            fl: new WheelTireMark(flMesh, this._maxTiresInstances),
-            fr: new WheelTireMark(frMesh, this._maxTiresInstances),
-            bl: new WheelTireMark(blMesh, this._maxTiresInstances),
-            br: new WheelTireMark(brMesh, this._maxTiresInstances),
-          },
-        ];
-      })
-    );
-
-    Array.from(this._carsTireMarks.values()).forEach((wheels) => {
-      this._scene.add(wheels.fl, wheels.fr, wheels.bl, wheels.br);
-    });
-
-    this._renderTarget = new WebGLRenderTarget(2048, 2048, {
+  constructor(renderer: WebGLRenderer, size: number = 25) {
+    const renderTarget = new WebGLRenderTarget(2048, 2048, {
       minFilter: LinearFilter,
       magFilter: LinearFilter,
       format: RGBAFormat,
     });
 
-    this.object3D = new Mesh(
-      new PlaneGeometry(this._size, this._size, 1, 1),
+    const object3D = new Mesh(
+      new PlaneGeometry(size, size, 1, 1),
       new MeshStandardMaterial({
         color: 0xffffff,
-        map: this._renderTarget.texture,
+        map: renderTarget.texture,
       })
     );
+    object3D.rotateX(-Math.PI / 2);
+    object3D.receiveShadow = true;
+
+    super(
+      object3D.geometry.rotateX(-Math.PI / 2),
+      object3D.material,
+      ColliderDesc.cuboid(size / 2, 0.001, size / 2).setCollisionGroups(
+        FloorColliderGroup
+      ),
+      RigidBodyDesc.fixed()
+    );
+
+    this._renderer = renderer;
+    this._renderer.autoClear = false;
+    this._size = size;
+
+    this._scene = new Scene();
+    // Убираем добавление фона в конструкторе - будет добавлен в attachCars
+    this._scene.add(new AmbientLight(0xffffff, 10));
+
+    this._carsTireMarks = new Map();
+
+    this._renderTarget = renderTarget;
 
     this._camera = new OrthographicCamera(
       -this._size / 2,
@@ -116,47 +82,86 @@ export class Ground extends PhysicalObject {
     this._camera.position.set(0, 50, 0);
     this._camera.lookAt(new Vector3(0, 0, 0));
 
-    this._cameraHelper = new CameraHelper(this._camera);
-
-    this.collider = world.createCollider(
-      ColliderDesc.cuboid(this._size / 2, 0.001, this._size / 2).setTranslation(
-        this._position.x,
-        this._position.y,
-        this._position.z
-      )
+    this._cameraPlaceholder = new Object3D();
+    this._cameraPlaceholder.position.copy(
+      this._camera.getWorldPosition(new Vector3())
+    );
+    this._cameraPlaceholder.quaternion.copy(
+      this._camera.getWorldQuaternion(new Quaternion())
     );
 
-    this.object3D.rotateX(-Math.PI / 2);
-    this.object3D.position.copy(this._position);
-    this.object3D.receiveShadow = true;
+    this.add(this._cameraPlaceholder);
 
-    const light = new AmbientLight(0xffffff, 10);
-    this._scene.add(light);
-
-    const floorCopy = this._getFloorFadeCopy(1);
-
-    this._scene.add(floorCopy);
+    this.cameraHelper = new CameraHelper(this._camera);
   }
 
-  private _getFloorFadeCopy(opacity: number): Mesh {
-    const floorCopy = this.object3D.clone();
-    (floorCopy as Mesh).material = new MeshStandardMaterial({
-      color: 0xffffff,
-      opacity: opacity,
-      transparent: true,
+  public attachCars(cars: Car[]): void {
+    this._scene.clear();
+
+    this._cars = cars;
+
+    this._carsTireMarks = new Map(
+      this._cars.map((car) => {
+        if (!car.wheelFL || !car.wheelFR || !car.wheelBL || !car.wheelBR) {
+          console.error('Car wheels are not initialized properly.');
+          return [car, null];
+        }
+
+        const flMesh = car.wheelFL.cloneMesh();
+        flMesh.geometry = flMesh.geometry.clone();
+        flMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        flMesh.geometry.scale(0.5, 1, 0.95);
+
+        const frMesh = car.wheelFR.cloneMesh();
+        frMesh.geometry = frMesh.geometry.clone();
+        frMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        frMesh.geometry.scale(0.5, 1, 0.95);
+
+        const blMesh = car.wheelBL.cloneMesh();
+        blMesh.geometry = blMesh.geometry.clone();
+        blMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        blMesh.geometry.scale(0.5, 1, 0.95);
+
+        const brMesh = car.wheelBR.cloneMesh();
+        brMesh.geometry = brMesh.geometry.clone();
+        brMesh.geometry.applyQuaternion(
+          new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+        );
+        brMesh.geometry.scale(0.5, 1, 0.95);
+
+        return [
+          car,
+          {
+            fl: new WheelTireMark(flMesh, this._maxTiresInstances, this),
+            fr: new WheelTireMark(frMesh, this._maxTiresInstances, this),
+            bl: new WheelTireMark(blMesh, this._maxTiresInstances, this),
+            br: new WheelTireMark(brMesh, this._maxTiresInstances, this),
+          },
+        ];
+      })
+    );
+
+    Array.from(this._carsTireMarks.values()).forEach((wheels) => {
+      if (!wheels) return;
+      this._scene.add(wheels.fl, wheels.fr, wheels.bl, wheels.br);
     });
-    return floorCopy as Mesh;
+
+    // Убираем добавление фона - он заливает белым поверх следов
+    // this._scene.add(this._getFloorCopy());
+    // Не добавляем AmbientLight повторно - он уже добавлен в конструкторе
   }
 
   public update(delta: number): void {
-    this._paintTires();
-
-    this._carsTireMarks.forEach((wheels) => {
-      wheels.fl.update(delta);
-      wheels.fr.update(delta);
-      wheels.bl.update(delta);
-      wheels.br.update(delta);
-    });
+    if (this._carsTireMarks.size) {
+      this._paintTireMarks();
+      this._updateTireMarks(delta);
+    }
 
     this._renderer.setRenderTarget(this._renderTarget);
     this._renderer.clear(true, true, true);
@@ -164,30 +169,64 @@ export class Ground extends PhysicalObject {
     this._renderer.setRenderTarget(null);
   }
 
-  private _paintTires(): void {
+  // Метод для создания фонового пола (в данный момент не используется)
+  // private _getFloorCopy(): Mesh {
+  //   const floorCopy = new Mesh(
+  //     new PlaneGeometry(this._size, this._size, 1, 1),
+  //     new MeshStandardMaterial({
+  //       color: 0x000000,
+  //       opacity: 0, // Полностью прозрачный - не будет рисоваться
+  //       transparent: true,
+  //       depthWrite: false, // Не записывать в depth buffer
+  //     })
+  //   );
+  //   floorCopy.rotateX(-Math.PI / 2);
+  //   floorCopy.renderOrder = -1; // Рисовать первым
+  //   return floorCopy;
+  // }
+
+  private _updateTireMarks(delta: number): void {
+    this._carsTireMarks.forEach((wheels) => {
+      wheels?.fl.update(delta);
+      wheels?.fr.update(delta);
+      wheels?.bl.update(delta);
+      wheels?.br.update(delta);
+    });
+  }
+
+  private _paintTireMarks(): void {
     this._cars.forEach((car) => {
       if (!car.eventMap.get('handbrake') || car.speed < 0.1) return;
 
+      if (!car.wheelBL || !car.wheelBR || !car.wheelFL || !car.wheelFR) {
+        console.error('Car wheels are not initialized properly.');
+        return;
+      }
+
       const positions = {
-        fl: car.wheelFL.object3D.getWorldPosition(new Vector3()),
-        fr: car.wheelFR.object3D.getWorldPosition(new Vector3()),
-        bl: car.wheelBL.object3D.getWorldPosition(new Vector3()),
-        br: car.wheelBR.object3D.getWorldPosition(new Vector3()),
+        fl: car.wheelFL.getWorldPosition(new Vector3()),
+        fr: car.wheelFR.getWorldPosition(new Vector3()),
+        bl: car.wheelBL.getWorldPosition(new Vector3()),
+        br: car.wheelBR.getWorldPosition(new Vector3()),
       };
 
       const rotations = {
-        fl: car.wheelFL.object3D.rotation.y,
-        fr: car.wheelFR.object3D.rotation.y,
-        bl: car.wheelBL.object3D.rotation.y,
-        br: car.wheelBR.object3D.rotation.y,
+        fl: car.wheelFL.rotation.y,
+        fr: car.wheelFR.rotation.y,
+        bl: car.wheelBL.rotation.y,
+        br: car.wheelBR.rotation.y,
       };
 
       const tireMarksMesh = this._carsTireMarks.get(car);
 
-      tireMarksMesh.fl.addTireMark(positions.fl, rotations.fl);
-      tireMarksMesh.fr.addTireMark(positions.fr, rotations.fr);
-      tireMarksMesh.bl.addTireMark(positions.bl, rotations.bl);
-      tireMarksMesh.br.addTireMark(positions.br, rotations.br);
+      if (!tireMarksMesh) return;
+
+      // Передаем скорость машины для динамического throttling
+      const carSpeed = car.speed || 0;
+      tireMarksMesh.fl.addTireMark(positions.fl, rotations.fl, carSpeed);
+      tireMarksMesh.fr.addTireMark(positions.fr, rotations.fr, carSpeed);
+      tireMarksMesh.bl.addTireMark(positions.bl, rotations.bl, carSpeed);
+      tireMarksMesh.br.addTireMark(positions.br, rotations.br, carSpeed);
     });
   }
 }

@@ -32,11 +32,11 @@ export class CarControls {
     const map = this.keyControls.update();
 
     return new Map([
-      ['accelerate', map.get('KeyW')],
-      ['brake', map.get('KeyS')],
-      ['steer_left', map.get('KeyA')],
-      ['steer_right', map.get('KeyD')],
-      ['handbrake', map.get('Space')],
+      ['accelerate', !!map.get('KeyW')],
+      ['brake', !!map.get('KeyS')],
+      ['steer_left', !!map.get('KeyA')],
+      ['steer_right', !!map.get('KeyD')],
+      ['handbrake', !!map.get('Space')],
     ]);
   }
 }

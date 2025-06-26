@@ -13,31 +13,30 @@ export class ObserverControls {
     domElement.addEventListener('click', () => {
       this._pointerLockControls.lock();
     });
-
-    this._keyControls.registerCallback((map, delta) => {
-      if (!this._pointerLockControls.isLocked) return;
-      if (map.get('KeyW')) {
-        this._pointerLockControls.moveForward(delta);
-      }
-      if (map.get('KeyS')) {
-        this._pointerLockControls.moveForward(-delta);
-      }
-      if (map.get('KeyA')) {
-        this._pointerLockControls.moveRight(-delta);
-      }
-      if (map.get('KeyD')) {
-        this._pointerLockControls.moveRight(delta);
-      }
-      if (map.get('Space')) {
-        this._pointerLockControls.object.position.y += delta;
-      }
-      if (map.get('ShiftLeft')) {
-        this._pointerLockControls.object.position.y -= delta;
-      }
-    });
   }
 
   public update(delta: number): void {
-    this._keyControls.update(delta);
+    if (!this._pointerLockControls.isLocked) return;
+
+    const map = this._keyControls.update();
+
+    if (map.get('KeyW')) {
+      this._pointerLockControls.moveForward(delta);
+    }
+    if (map.get('KeyS')) {
+      this._pointerLockControls.moveForward(-delta);
+    }
+    if (map.get('KeyA')) {
+      this._pointerLockControls.moveRight(-delta);
+    }
+    if (map.get('KeyD')) {
+      this._pointerLockControls.moveRight(delta);
+    }
+    if (map.get('Space')) {
+      this._pointerLockControls.object.position.y += delta;
+    }
+    if (map.get('ShiftLeft')) {
+      this._pointerLockControls.object.position.y -= delta;
+    }
   }
 }

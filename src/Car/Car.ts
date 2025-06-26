@@ -6,15 +6,22 @@ import {
   RigidBodyDesc,
 } from '@dimforge/rapier3d';
 import { scene, world } from '../global';
-import PhysicalObject from '../PhysicalObject';
-import { Mesh, Object3D, type TypedArray } from 'three';
+import PhysicalObject from '../scene/PhysicalObject';
+import {
+  BufferGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  type TypedArray,
+} from 'three';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import { Vector3 } from 'three';
 import {
   AxelColliderGroup,
   CarColliderGroup,
   WheelColliderGroup,
-} from '../ColliderGroup';
+} from '../scene/ColliderGroup';
 import {
   CAR_ACCELERATE_DAMPING_INTERPOLATION,
   CAR_ACCELERATE_SPEED,
@@ -34,23 +41,25 @@ import {
 import type { CarEventMap, CarWheels } from './Car.model';
 import { truncatePositions } from '../utils';
 import type { CarControls } from '../controls/CarControls';
+import type { PhysicalScene } from '../scene/PhysicalScene';
 
 export class Car {
   public id = crypto.randomUUID();
-  public transmission: PhysicalObject;
-  public wheelFL: PhysicalObject;
-  public wheelFR: PhysicalObject;
-  public wheelBL: PhysicalObject;
-  public wheelBR: PhysicalObject;
+  public transmission?: PhysicalObject;
+  public wheelFL?: PhysicalObject;
+  public wheelFR?: PhysicalObject;
+  public wheelBL?: PhysicalObject;
+  public wheelBR?: PhysicalObject;
 
-  public axelFL: PhysicalObject;
-  public axelFR: PhysicalObject;
-  public wheelBLMotor: RevoluteImpulseJoint;
-  public wheelBRMotor: RevoluteImpulseJoint;
-  public wheelFLMotor: RevoluteImpulseJoint;
-  public wheelFRMotor: RevoluteImpulseJoint;
-  public flAxelJoint: RevoluteImpulseJoint;
-  public frAxelJoint: RevoluteImpulseJoint;
+  public axelFL?: PhysicalObject;
+  public axelFR?: PhysicalObject;
+
+  private _wheelBLMotor?: RevoluteImpulseJoint;
+  private _wheelBRMotor?: RevoluteImpulseJoint;
+  private _wheelFLMotor?: RevoluteImpulseJoint;
+  private _wheelFRMotor?: RevoluteImpulseJoint;
+  private _flAxelJoint?: RevoluteImpulseJoint;
+  private _frAxelJoint?: RevoluteImpulseJoint;
 
   public ready = false;
 
@@ -62,12 +71,16 @@ export class Car {
     return this._getCurrentVelocity();
   }
 
-  public get wheelsPositions(): CarWheels<Vector3> {
+  public get wheelsPositions(): CarWheels<Vector3> | null {
+    if (!this.wheelFL || !this.wheelFR || !this.wheelBL || !this.wheelBR) {
+      return null;
+    }
+
     return {
-      fl: this.wheelFL.object3D.getWorldPosition(new Vector3()),
-      fr: this.wheelFR.object3D.getWorldPosition(new Vector3()),
-      bl: this.wheelBL.object3D.getWorldPosition(new Vector3()),
-      br: this.wheelBR.object3D.getWorldPosition(new Vector3()),
+      fl: this.wheelFL.getWorldPosition(new Vector3()),
+      fr: this.wheelFR.getWorldPosition(new Vector3()),
+      bl: this.wheelBL.getWorldPosition(new Vector3()),
+      br: this.wheelBR.getWorldPosition(new Vector3()),
     };
   }
 
@@ -90,69 +103,52 @@ export class Car {
     const wheelFLMesh = gltf.scene.getObjectByName('wheel_fl') as Mesh;
     const wheelFRMesh = gltf.scene.getObjectByName('wheel_fr') as Mesh;
 
+    if (
+      !transmissionMesh ||
+      !wheelBLMesh ||
+      !wheelBRMesh ||
+      !wheelFLMesh ||
+      !wheelFRMesh
+    ) {
+      throw new Error('Car model is missing required meshes');
+    }
+
     transmissionMesh.position.set(0, 0, 0);
     wheelBLMesh.position.set(0, 0, 0);
     wheelBRMesh.position.set(0, 0, 0);
     wheelFLMesh.position.set(0, 0, 0);
     wheelFRMesh.position.set(0, 0, 0);
 
-    const axelFLMesh = new Object3D();
-    const axelFRMesh = new Object3D();
-
-    scene.add(transmissionMesh);
-    scene.add(wheelBLMesh);
-    scene.add(wheelBRMesh);
-    scene.add(wheelFLMesh);
-    scene.add(wheelFRMesh);
-    scene.add(axelFLMesh);
-    scene.add(axelFRMesh);
-
-    scene.updateMatrixWorld();
-
-    const transmissionBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(position.x, position.y, position.z)
-        .setCanSleep(false)
-        .setAdditionalMass(CAR_TRANSMISSION_MASS)
-    );
+    const transmissionBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(position.x, position.y, position.z)
+      .setCanSleep(false)
+      .setAdditionalMass(CAR_TRANSMISSION_MASS);
 
     const wheelFlPosition = position.clone().add(CAR_FL_OFFSET);
     const wheelFrPosition = position.clone().add(CAR_FR_OFFSET);
     const wheelBlPosition = position.clone().add(CAR_BL_OFFSET);
     const wheelBrPosition = position.clone().add(CAR_BR_OFFSET);
 
-    const wheelBLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelBlPosition.x, wheelBlPosition.y, wheelBlPosition.z)
-        .setAdditionalMass(CAR_WHEELS_MASS)
-    );
-    const wheelBRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelBrPosition.x, wheelBrPosition.y, wheelBrPosition.z)
-        .setAdditionalMass(CAR_WHEELS_MASS)
-    );
-    const wheelFLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
-        .setAdditionalMass(CAR_WHEELS_MASS)
-    );
-    const wheelFRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
-        .setAdditionalMass(CAR_WHEELS_MASS)
-    );
+    const wheelBLBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelBlPosition.x, wheelBlPosition.y, wheelBlPosition.z)
+      .setAdditionalMass(CAR_WHEELS_MASS);
+    const wheelBRBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelBrPosition.x, wheelBrPosition.y, wheelBrPosition.z)
+      .setAdditionalMass(CAR_WHEELS_MASS);
+    const wheelFLBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
+      .setAdditionalMass(CAR_WHEELS_MASS);
+    const wheelFRBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
+      .setAdditionalMass(CAR_WHEELS_MASS);
 
-    const axelFLBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
-        .setAdditionalMass(40)
-    );
+    const axelFLBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelFlPosition.x, wheelFlPosition.y, wheelFlPosition.z)
+      .setAdditionalMass(40);
 
-    const axelFRBody = world.createRigidBody(
-      RigidBodyDesc.dynamic()
-        .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
-        .setAdditionalMass(40)
-    );
+    const axelFRBodyDesc = RigidBodyDesc.dynamic()
+      .setTranslation(wheelFrPosition.x, wheelFrPosition.y, wheelFrPosition.z)
+      .setAdditionalMass(40);
 
     const transmissionShape = ColliderDesc.convexHull(
       new Float32Array(
@@ -162,40 +158,58 @@ export class Car {
       )
     );
 
+    if (!transmissionShape) {
+      throw new Error('Failed to create transmission shape');
+    }
+
     this.transmission = new PhysicalObject(
-      transmissionMesh,
-      world.createCollider(transmissionShape, transmissionBody)
+      transmissionMesh.geometry,
+      transmissionMesh.material,
+      transmissionShape,
+      transmissionBodyDesc
     );
     this.transmission.collider.setCollisionGroups(CarColliderGroup);
     this.wheelBL = new PhysicalObject(
-      wheelBLMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, wheelBLBody)
+      wheelBLMesh.geometry,
+      wheelBLMesh.material,
+      CAR_WHEELS_SHAPE,
+      wheelBLBodyDesc
     );
     this.wheelBL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelBR = new PhysicalObject(
-      wheelBRMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, wheelBRBody)
+      wheelBRMesh.geometry,
+      wheelBRMesh.material,
+      CAR_WHEELS_SHAPE,
+      wheelBRBodyDesc
     );
     this.wheelBR.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFL = new PhysicalObject(
-      wheelFLMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, wheelFLBody)
+      wheelFLMesh.geometry,
+      wheelFLMesh.material,
+      CAR_WHEELS_SHAPE,
+      wheelFLBodyDesc
     );
     this.wheelFL.collider.setCollisionGroups(WheelColliderGroup);
     this.wheelFR = new PhysicalObject(
-      wheelFRMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, wheelFRBody)
+      wheelFRMesh.geometry,
+      wheelFRMesh.material,
+      CAR_WHEELS_SHAPE,
+      wheelFRBodyDesc
     );
     this.wheelFR.collider.setCollisionGroups(WheelColliderGroup);
     this.axelFL = new PhysicalObject(
-      axelFLMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, axelFLBody)
+      new BufferGeometry(),
+      new MeshStandardMaterial(),
+      CAR_WHEELS_SHAPE,
+      axelFLBodyDesc
     );
 
     this.axelFL.collider.setCollisionGroups(AxelColliderGroup);
     this.axelFR = new PhysicalObject(
-      axelFRMesh,
-      world.createCollider(CAR_WHEELS_SHAPE, axelFRBody)
+      new BufferGeometry(),
+      new MeshStandardMaterial(),
+      CAR_WHEELS_SHAPE,
+      axelFRBodyDesc
     );
     this.axelFR.collider.setCollisionGroups(AxelColliderGroup);
 
@@ -205,8 +219,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, -1)
       ),
-      transmissionBody,
-      wheelBLBody,
+      this.transmission.body!,
+      this.wheelBL.body!,
       true
     );
     world.createImpulseJoint(
@@ -215,8 +229,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, -1)
       ),
-      transmissionBody,
-      wheelBRBody,
+      this.transmission.body!,
+      this.wheelBR.body!,
       true
     );
 
@@ -226,8 +240,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 1, 0)
       ),
-      transmissionBody,
-      axelFLBody,
+      this.transmission.body!,
+      this.axelFL.body!,
       true
     );
     (flAxelJoint as RevoluteImpulseJoint).configureMotorModel(
@@ -240,8 +254,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 1, 0)
       ),
-      transmissionBody,
-      axelFRBody,
+      this.transmission.body!,
+      this.axelFR.body!,
       true
     );
     (frAxelJoint as RevoluteImpulseJoint).configureMotorModel(
@@ -257,8 +271,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, 1)
       ),
-      transmissionBody,
-      wheelBLBody,
+      this.transmission.body!,
+      this.wheelBL.body!,
       true
     ) as RevoluteImpulseJoint;
     wheelBLMotor.configureMotorModel(MotorModel.ForceBased);
@@ -269,8 +283,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, 1)
       ),
-      transmissionBody,
-      wheelBRBody,
+      this.transmission.body!,
+      this.wheelBR.body!,
       true
     ) as RevoluteImpulseJoint;
     wheelBRMotor.configureMotorModel(MotorModel.ForceBased);
@@ -281,8 +295,8 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, 1)
       ),
-      axelFLBody,
-      wheelFLBody,
+      this.axelFL.body!,
+      this.wheelFL.body!,
       true
     ) as RevoluteImpulseJoint;
     wheelFLMotor.configureMotorModel(MotorModel.ForceBased);
@@ -293,30 +307,31 @@ export class Car {
         new Vector3(0, 0, 0),
         new Vector3(0, 0, 1)
       ),
-      axelFRBody,
-      wheelFRBody,
+      this.axelFR.body!,
+      this.wheelFR.body!,
       true
     ) as RevoluteImpulseJoint;
     wheelFRMotor.configureMotorModel(MotorModel.ForceBased);
 
-    this.wheelBLMotor = wheelBLMotor;
-    this.wheelBRMotor = wheelBRMotor;
-    this.wheelFLMotor = wheelFLMotor;
-    this.wheelFRMotor = wheelFRMotor;
-    this.flAxelJoint = flAxelJoint as RevoluteImpulseJoint;
-    this.frAxelJoint = frAxelJoint as RevoluteImpulseJoint;
+    this._wheelBLMotor = wheelBLMotor;
+    this._wheelBRMotor = wheelBRMotor;
+    this._wheelFLMotor = wheelFLMotor;
+    this._wheelFRMotor = wheelFRMotor;
+    this._flAxelJoint = flAxelJoint as RevoluteImpulseJoint;
+    this._frAxelJoint = frAxelJoint as RevoluteImpulseJoint;
 
     this.ready = true;
   }
 
   public attachController(controller: CarControls): void {
+    if (!this.transmission) {
+      throw new Error('Transmission is not initialized');
+    }
+
     controller?.parent?.removeController();
 
     this._controller = controller;
-    this._controller.attachTo(
-      this.transmission.object3D,
-      new Vector3(0, 0.5, 0)
-    );
+    this._controller.attachTo(this.transmission, new Vector3(0, 0.5, 0));
 
     this._controller.parent = this;
   }
@@ -328,13 +343,13 @@ export class Car {
   public update(): void {
     if (!this.ready) return;
 
-    this.transmission.update();
-    this.wheelFL.update();
-    this.wheelFR.update();
-    this.wheelBL.update();
-    this.wheelBR.update();
-    this.axelFL.update();
-    this.axelFR.update();
+    this.transmission?.update();
+    this.wheelFL?.update();
+    this.wheelFR?.update();
+    this.wheelBL?.update();
+    this.wheelBR?.update();
+    this.axelFL?.update();
+    this.axelFR?.update();
 
     this._map = this._controller?.update() ?? new Map();
 
@@ -351,12 +366,14 @@ export class Car {
         ? -CAR_STEERING_ANGLE
         : 0;
 
-    (this.flAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+    if (!this._flAxelJoint || !this._frAxelJoint) return;
+
+    this._flAxelJoint.configureMotorPosition(
       targetSteer,
       CAR_STEERING_STIFFNESS,
       CAR_STEERING_DAMPING
     );
-    (this.frAxelJoint as RevoluteImpulseJoint).configureMotorPosition(
+    this._frAxelJoint.configureMotorPosition(
       targetSteer,
       CAR_STEERING_STIFFNESS,
       CAR_STEERING_DAMPING
@@ -402,32 +419,53 @@ export class Car {
       }
     }
 
-    (this.wheelBLMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      backWheelsVelocity,
-      backWheelsDamping
-    );
-    (this.wheelBRMotor as RevoluteImpulseJoint).configureMotorVelocity(
-      backWheelsVelocity,
-      backWheelsDamping
-    );
+    if (
+      !this._wheelBLMotor ||
+      !this._wheelBRMotor ||
+      !this._wheelFLMotor ||
+      !this._wheelFRMotor
+    )
+      return;
 
-    (this.wheelFLMotor as RevoluteImpulseJoint).configureMotorVelocity(
+    this._wheelBLMotor.configureMotorVelocity(
+      backWheelsVelocity,
+      backWheelsDamping
+    );
+    this._wheelBRMotor.configureMotorVelocity(
+      backWheelsVelocity,
+      backWheelsDamping
+    );
+    this._wheelFLMotor.configureMotorVelocity(
       frontWheelsVelocity,
       frontWheelsDamping
     );
-    (this.wheelFRMotor as RevoluteImpulseJoint).configureMotorVelocity(
+    this._wheelFRMotor.configureMotorVelocity(
       frontWheelsVelocity,
       frontWheelsDamping
     );
   }
 
   private _getCurrentVelocity(): number {
-    const linvel = this.transmission?.body?.linvel();
+    if (!this.transmission?.body) return 0;
+
+    const linvel = this.transmission.body.linvel();
     return (
       -1 *
       new Vector3(linvel.z, linvel.y, linvel.x).applyQuaternion(
-        this.transmission.object3D.quaternion
+        this.transmission.quaternion
       ).z
     );
+  }
+
+  public addMeshesToScene(scene: PhysicalScene): void {
+    if (!this.ready) return;
+
+    if (this.transmission) scene.add(this.transmission);
+    if (this.wheelFL) scene.add(this.wheelFL);
+    if (this.wheelFR) scene.add(this.wheelFR);
+    if (this.wheelBL) scene.add(this.wheelBL);
+    if (this.wheelBR) scene.add(this.wheelBR);
+    if (this.axelFL) scene.add(this.axelFL);
+    if (this.axelFR) scene.add(this.axelFR);
   }
 }

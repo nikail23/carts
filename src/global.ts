@@ -12,10 +12,11 @@ import {
 import Stats from 'three/addons/libs/stats.module.js';
 import RapierDebugRenderer from './RapierDebugRenderer';
 import { RGBELoader } from 'three/examples/jsm/Addons.js';
+import { PhysicalScene } from './scene/PhysicalScene';
 
 export const world = new World({ x: 0.0, y: -9.81, z: 0.0 });
 
-export const scene = new Scene();
+export const scene = new PhysicalScene();
 const environmentTexture = await new RGBELoader().loadAsync(
   'environment/map.hdr'
 );
