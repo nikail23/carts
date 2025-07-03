@@ -1,8 +1,34 @@
-import { Color, ShaderMaterial } from 'three';
+import {
+  Color,
+  ShaderMaterial,
+  Vector3,
+  type ShaderMaterialParameters,
+} from 'three';
 
-export const tireMarkMaterial = new ShaderMaterial({
+export interface TireMarkMaterialUniforms {
+  uColor: { value: Color | null };
+  [uniform: string]: { value: any };
+}
+
+export class TireMarkShaderMaterial extends ShaderMaterial {
+  public uniforms: TireMarkMaterialUniforms;
+
+  constructor(
+    parameters?: ShaderMaterialParameters & {
+      uniforms?: TireMarkMaterialUniforms;
+    }
+  ) {
+    super(parameters);
+
+    this.uniforms = parameters?.uniforms || {
+      uColor: { value: null },
+    };
+  }
+}
+
+export const tireMarkMaterial = new TireMarkShaderMaterial({
   uniforms: {
-    color: { value: new Color(0x555555) },
+    uColor: { value: null },
   },
   vertexShader: `
       attribute float instanceAlpha;
@@ -13,10 +39,10 @@ export const tireMarkMaterial = new ShaderMaterial({
       }
     `,
   fragmentShader: `
-      uniform vec3 color;
+      uniform vec3 uColor;
       varying float vAlpha;
       void main() {
-        gl_FragColor = vec4(color, vAlpha * 0.5);
+        gl_FragColor = vec4(uColor.rgb, vAlpha * 1.0);
       }
     `,
   transparent: true,

@@ -18,6 +18,7 @@ import {
   Quaternion as ThreeQuaternion,
   CameraHelper,
   ShaderMaterial,
+  TextureLoader,
 } from 'three';
 import {
   camera,
@@ -60,7 +61,10 @@ scene.add(controls.pivot);
 car.attachController(controls);
 currentCar = car;
 
-const ground = new Ground(renderer, 25);
+const groundTexture = await new TextureLoader().loadAsync(
+  '/textures/dirt_floor_diff_2k.jpg'
+);
+const ground = new Ground(renderer, 25, groundTexture);
 ground.setPosition(new ThreeVector3(0, -2, 0));
 ground.setRotation(
   new ThreeQuaternion().setFromAxisAngle(new ThreeVector3(1, 0, 0), 0.1)

@@ -14,12 +14,16 @@ import {
   AmbientLight,
   Quaternion,
   Object3D,
+  type ColorRepresentation,
+  Texture,
+  Color,
 } from 'three';
 import PhysicalObject from '../scene/PhysicalObject';
 import type { Car } from '../car/Car';
-import { WheelTireMark } from './WheelTireMark';
+import { TireMark } from './TireMark';
 import type { CarWheels } from '../car/Car.model';
 import { FloorColliderGroup } from '../scene/ColliderGroup';
+import { groundMaterial } from './Ground.material';
 
 export class Ground extends PhysicalObject {
   public cameraHelper: CameraHelper;
@@ -29,23 +33,30 @@ export class Ground extends PhysicalObject {
   private _renderTarget: WebGLRenderTarget;
   private _scene: Scene;
   private _cars: Car[] = [];
-  private _carsTireMarks: Map<Car, CarWheels<WheelTireMark> | null>;
+  private _carsTireMarks: Map<Car, CarWheels<TireMark> | null>;
   private _renderer: WebGLRenderer;
-  private _maxTiresInstances = 2000; // Увеличили с 500 до 2000
+  private _maxTiresInstances = 2000;
 
-  constructor(renderer: WebGLRenderer, size: number = 25) {
+  constructor(
+    renderer: WebGLRenderer,
+    size: number = 25,
+    texture?: Texture,
+    color?: Vector3
+  ) {
     const renderTarget = new WebGLRenderTarget(2048, 2048, {
       minFilter: LinearFilter,
       magFilter: LinearFilter,
       format: RGBAFormat,
     });
 
+    groundMaterial.uniforms.uTireMarksTexture.value = renderTarget.texture;
+    groundMaterial.uniforms.uTexture.value = texture ?? null;
+    groundMaterial.uniforms.uColor.value = color ?? new Vector3(0, 0, 0);
+    groundMaterial.needsUpdate = true;
+
     const object3D = new Mesh(
       new PlaneGeometry(size, size, 1, 1),
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: renderTarget.texture,
-      })
+      groundMaterial
     );
     object3D.rotateX(-Math.PI / 2);
     object3D.receiveShadow = true;
@@ -64,7 +75,6 @@ export class Ground extends PhysicalObject {
     this._size = size;
 
     this._scene = new Scene();
-    // Убираем добавление фона в конструкторе - будет добавлен в attachCars
     this._scene.add(new AmbientLight(0xffffff, 10));
 
     this._carsTireMarks = new Map();
@@ -135,13 +145,15 @@ export class Ground extends PhysicalObject {
         );
         brMesh.geometry.scale(0.5, 1, 0.95);
 
+        const color = new Color(0.1, 0.1, 0.1);
+
         return [
           car,
           {
-            fl: new WheelTireMark(flMesh, this._maxTiresInstances, this),
-            fr: new WheelTireMark(frMesh, this._maxTiresInstances, this),
-            bl: new WheelTireMark(blMesh, this._maxTiresInstances, this),
-            br: new WheelTireMark(brMesh, this._maxTiresInstances, this),
+            fl: new TireMark(flMesh, this._maxTiresInstances, this, color),
+            fr: new TireMark(frMesh, this._maxTiresInstances, this, color),
+            bl: new TireMark(blMesh, this._maxTiresInstances, this, color),
+            br: new TireMark(brMesh, this._maxTiresInstances, this, color),
           },
         ];
       })
@@ -151,10 +163,6 @@ export class Ground extends PhysicalObject {
       if (!wheels) return;
       this._scene.add(wheels.fl, wheels.fr, wheels.bl, wheels.br);
     });
-
-    // Убираем добавление фона - он заливает белым поверх следов
-    // this._scene.add(this._getFloorCopy());
-    // Не добавляем AmbientLight повторно - он уже добавлен в конструкторе
   }
 
   public update(delta: number): void {
@@ -168,22 +176,6 @@ export class Ground extends PhysicalObject {
     this._renderer.render(this._scene, this._camera);
     this._renderer.setRenderTarget(null);
   }
-
-  // Метод для создания фонового пола (в данный момент не используется)
-  // private _getFloorCopy(): Mesh {
-  //   const floorCopy = new Mesh(
-  //     new PlaneGeometry(this._size, this._size, 1, 1),
-  //     new MeshStandardMaterial({
-  //       color: 0x000000,
-  //       opacity: 0, // Полностью прозрачный - не будет рисоваться
-  //       transparent: true,
-  //       depthWrite: false, // Не записывать в depth buffer
-  //     })
-  //   );
-  //   floorCopy.rotateX(-Math.PI / 2);
-  //   floorCopy.renderOrder = -1; // Рисовать первым
-  //   return floorCopy;
-  // }
 
   private _updateTireMarks(delta: number): void {
     this._carsTireMarks.forEach((wheels) => {
@@ -221,12 +213,10 @@ export class Ground extends PhysicalObject {
 
       if (!tireMarksMesh) return;
 
-      // Передаем скорость машины для динамического throttling
-      const carSpeed = car.speed || 0;
-      tireMarksMesh.fl.addTireMark(positions.fl, rotations.fl, carSpeed);
-      tireMarksMesh.fr.addTireMark(positions.fr, rotations.fr, carSpeed);
-      tireMarksMesh.bl.addTireMark(positions.bl, rotations.bl, carSpeed);
-      tireMarksMesh.br.addTireMark(positions.br, rotations.br, carSpeed);
+      tireMarksMesh.fl.addTireMark(positions.fl, rotations.fl);
+      tireMarksMesh.fr.addTireMark(positions.fr, rotations.fr);
+      tireMarksMesh.bl.addTireMark(positions.bl, rotations.bl);
+      tireMarksMesh.br.addTireMark(positions.br, rotations.br);
     });
   }
 }
